@@ -2,13 +2,12 @@ import { clsx } from 'clsx';
 import './Navbar.css';
 
 type NavbarProps = {
-  isAuthenticated: boolean;
+  user: any;
   onSignOut: () => void;
   onSignIn: () => void;
-  loading: boolean;
 };
 
-export default function Navbar({ isAuthenticated, onSignOut, onSignIn, loading }: NavbarProps) {
+export default function Navbar({ user, onSignOut, onSignIn }: NavbarProps) {
   return (
     <header className="navbar">
       <div className="navbar-inner">
@@ -24,10 +23,9 @@ export default function Navbar({ isAuthenticated, onSignOut, onSignIn, loading }
         <button
           type="button"
           className={clsx('cta-button', 'navbar-cta')}
-          onClick={isAuthenticated ? onSignOut : onSignIn}
-          disabled={loading}
+          onClick={user ? onSignOut : onSignIn}
         >
-          {loading ? 'Processing…' : isAuthenticated ? 'Sign out' : 'Sign in'}
+          {user ? 'Sign out' : 'Sign in with Google'}
         </button>
       </div>
     </header>

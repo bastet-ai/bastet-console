@@ -46,3 +46,61 @@ CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON users 
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Add avatar_url and last_login columns to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
+
+-- Create the bastet_nodes table for node management
+CREATE TABLE IF NOT EXISTS bastet_nodes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  node_type VARCHAR(100) NOT NULL, -- 'scanner', 'monitor', 'analyzer', etc.
+  status VARCHAR(50) DEFAULT 'offline' NOT NULL, -- 'online', 'offline', 'error'
+  info JSONB, -- Additional node information
+  last_seen TIMESTAMP WITH TIME ZONE,
+  websocket_connection BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create the scan_results table for vulnerability scan results
+CREATE TABLE IF NOT EXISTS scan_results (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  node_id UUID REFERENCES bastet_nodes(id) ON DELETE CASCADE,
+  scan_id VARCHAR(255) NOT NULL,
+  results JSONB NOT NULL, -- Scan results data
+  status VARCHAR(50) DEFAULT 'pending' NOT NULL, -- 'pending', 'completed', 'failed'
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_bastet_nodes_user_id ON bastet_nodes(user_id);
+CREATE INDEX IF NOT EXISTS idx_bastet_nodes_status ON bastet_nodes(status);
+CREATE INDEX IF NOT EXISTS idx_scan_results_node_id ON scan_results(node_id);
+CREATE INDEX IF NOT EXISTS idx_scan_results_scan_id ON scan_results(scan_id);
+
+-- Enable RLS for new tables
+ALTER TABLE bastet_nodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scan_results ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for new tables
+CREATE POLICY "Users can manage their own nodes" ON bastet_nodes
+  FOR ALL USING (true);
+
+CREATE POLICY "Users can access scan results for their nodes" ON scan_results
+  FOR ALL USING (true);
+
+-- Create triggers for updated_at on new tables
+CREATE TRIGGER update_bastet_nodes_updated_at 
+  BEFORE UPDATE ON bastet_nodes 
+  FOR EACH ROW 
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_scan_results_updated_at 
+  BEFORE UPDATE ON scan_results 
+  FOR EACH ROW 
+  EXECUTE FUNCTION update_updated_at_column();
