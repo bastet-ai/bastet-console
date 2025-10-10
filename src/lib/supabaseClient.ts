@@ -78,18 +78,89 @@ export async function updateUserTokens(userId: string, accessToken: string, refr
   return { error: error?.message || null };
 }
 
-// Google OAuth functions (you'll implement these with Google's OAuth library)
-export async function signInWithGoogle(): Promise<{ error?: string }> {
-  // TODO: Implement Google OAuth flow
-  // 1. Redirect to Google OAuth
-  // 2. Handle callback
-  // 3. Get user info from Google
-  // 4. Store/update user in Supabase database
-  return { error: 'Google OAuth not implemented yet. Use Google OAuth library.' };
+// Google OAuth functions using our Next.js API routes
+export async function signInWithGoogle(): Promise<{ user?: User; error?: string }> {
+  try {
+    // Load Google OAuth library dynamically
+    const { gapi } = await import('gapi-script');
+    
+    // Initialize Google API
+    await gapi.load('auth2', async () => {
+      await gapi.auth2.init({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+      });
+    });
+
+    // Sign in with Google
+    const authInstance = gapi.auth2.getAuthInstance();
+    const googleUser = await authInstance.signIn();
+    const idToken = googleUser.getAuthResponse().id_token;
+
+    // Send to our backend API
+    const response = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idToken })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Store token in localStorage
+      localStorage.setItem('auth_token', data.token);
+      return { user: data.user };
+    } else {
+      return { error: data.error || 'Authentication failed' };
+    }
+  } catch (error) {
+    console.error('Google OAuth error:', error);
+    return { error: 'Failed to authenticate with Google' };
+  }
 }
 
 export async function signOut(): Promise<{ error?: string }> {
-  // TODO: Clear local session/tokens
-  // No need to call Supabase auth
-  return {};
+  try {
+    // Call our logout API
+    await fetch('/api/auth/logout', {
+      method: 'POST'
+    });
+
+    // Clear local storage
+    localStorage.removeItem('auth_token');
+    
+    return {};
+  } catch (error) {
+    console.error('Logout error:', error);
+    return { error: 'Failed to logout' };
+  }
+}
+
+// Verify current session
+export async function verifySession(): Promise<{ user?: User; error?: string }> {
+  try {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      return { error: 'No session found' };
+    }
+
+    const response = await fetch('/api/auth/verify', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.valid) {
+      return { user: data.user };
+    } else {
+      localStorage.removeItem('auth_token');
+      return { error: 'Invalid session' };
+    }
+  } catch (error) {
+    console.error('Session verification error:', error);
+    return { error: 'Failed to verify session' };
+  }
 }

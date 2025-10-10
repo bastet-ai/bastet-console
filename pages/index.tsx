@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
-import Navbar from '../components/Navbar'
-import HeroSection from '../sections/HeroSection'
-import FeaturesSection from '../sections/FeaturesSection'
-import WorkflowSection from '../sections/WorkflowSection'
-import AdministrationSection from '../sections/AdministrationSection'
-import Footer from '../components/Footer'
+import Navbar from '../src/components/Navbar'
+import HeroSection from '../src/sections/HeroSection'
+import FeaturesSection from '../src/sections/FeaturesSection'
+import WorkflowSection from '../src/sections/WorkflowSection'
+import AdministrationSection from '../src/sections/AdministrationSection'
+import Footer from '../src/components/Footer'
+import { signInWithGoogle, signOut, verifySession } from '../src/lib/supabaseClient'
 
 export default function Home() {
   const [user, setUser] = useState(null)
@@ -15,18 +16,9 @@ export default function Home() {
     // Check for existing session
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('auth_token')
-        if (token) {
-          const response = await fetch('/api/auth/verify', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            setUser(data.user)
-          }
+        const { user, error } = await verifySession()
+        if (user) {
+          setUser(user)
         }
       } catch (error) {
         console.error('Auth check failed:', error)
@@ -40,20 +32,31 @@ export default function Home() {
 
   const handleGoogleSignIn = async () => {
     try {
-      // This will be implemented with Google OAuth
-      console.log('Google sign in clicked')
+      setLoading(true)
+      const { user, error } = await signInWithGoogle()
+      if (user) {
+        setUser(user)
+      } else if (error) {
+        console.error('Sign in failed:', error)
+        alert('Sign in failed: ' + error)
+      }
     } catch (error) {
       console.error('Sign in failed:', error)
+      alert('Sign in failed: ' + error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleSignOut = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-      localStorage.removeItem('auth_token')
+      setLoading(true)
+      await signOut()
       setUser(null)
     } catch (error) {
       console.error('Sign out failed:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
