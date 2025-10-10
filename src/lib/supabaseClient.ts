@@ -60,6 +60,7 @@ export interface User {
   email: string;
   name: string;
   google_id: string;
+  avatar_url?: string;
   access_token?: string;
   refresh_token?: string;
   created_at: string;

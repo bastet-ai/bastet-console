@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
+import { type User } from '../lib/supabaseClient';
 
 type NavbarProps = {
-  user: any;
+  user: User | null;
   onSignOut: () => void;
   onSignIn: () => void;
 };
@@ -19,13 +20,43 @@ export default function Navbar({ user, onSignOut, onSignIn }: NavbarProps) {
           <a href="#features">Features</a>
           <a href="#administration">Administration</a>
         </nav>
-        <button
-          type="button"
-          className={clsx('cta-button', 'navbar-cta')}
-          onClick={user ? onSignOut : onSignIn}
-        >
-          {user ? 'Sign out' : 'Sign in with Google'}
-        </button>
+        
+        {user ? (
+          <div className="navbar-user">
+            <div className="user-info">
+              <img 
+                src={user.avatar_url || '/default-avatar.png'} 
+                alt={`${user.name}'s profile`}
+                className="user-avatar"
+                onError={(e) => {
+                  // Fallback to initials if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    parent.innerHTML = `<div class="user-avatar-fallback">${user.name.charAt(0).toUpperCase()}</div>`;
+                  }
+                }}
+              />
+              <span className="user-name">{user.name}</span>
+            </div>
+            <button
+              type="button"
+              className={clsx('cta-button', 'navbar-cta', 'sign-out-btn')}
+              onClick={onSignOut}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={clsx('cta-button', 'navbar-cta')}
+            onClick={onSignIn}
+          >
+            Sign in with Google
+          </button>
+        )}
       </div>
     </header>
   );
