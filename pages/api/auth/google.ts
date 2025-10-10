@@ -60,6 +60,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       code: code.substring(0, 10) + '...'
     })
     
+    // Log the exact URL and body being sent to Google
+    console.log('Google token endpoint URL:', 'https://oauth2.googleapis.com/token')
+    console.log('Request body (URLSearchParams):', new URLSearchParams(tokenRequestParams).toString())
+    
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
