@@ -917,6 +917,167 @@
   color: #ef4444;
 }
 
+/* Nodes tab styles */
+.nodes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.nodes-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nodes-count {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.nodes-online {
+  color: #10b981;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.nodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.node-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.node-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
+}
+
+.node-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.node-card-header {
+  margin-bottom: 0.5rem;
+}
+
+.node-card-title-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.node-card-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.node-card-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.node-card-description {
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.node-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.node-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.node-meta-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.node-meta-value {
+  color: #0f172a;
+}
+
+.node-card-info {
+  margin-top: 0.5rem;
+}
+
+.node-info-details {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.node-info-summary {
+  background: #f8fafc;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.node-info-summary:hover {
+  background: #f1f5f9;
+}
+
+.node-info-content {
+  background: white;
+  padding: 1rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #475569;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.node-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.node-action-btn {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.node-action-btn:hover {
+  background: #f8fafc;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 @media (max-width: 768px) {
   .campaign-header {
     flex-direction: column;
@@ -962,6 +1123,30 @@
   }
   
   .member-actions {
+    justify-content: center;
+  }
+  
+  .nodes-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .nodes-status {
+    justify-content: space-between;
+  }
+  
+  .node-card-title-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .node-card-badges {
+    justify-content: flex-start;
+  }
+  
+  .node-card-actions {
     justify-content: center;
   }
 }

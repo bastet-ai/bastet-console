@@ -17,6 +17,19 @@ interface CampaignMember {
   }
 }
 
+interface Node {
+  id: string
+  name: string
+  description?: string
+  node_type: string
+  status: string
+  info?: any
+  last_seen?: string
+  websocket_connection: boolean
+  created_at: string
+  updated_at: string
+}
+
 interface Campaign {
   id: string
   name: string
@@ -37,9 +50,10 @@ export default function CampaignDetail() {
   
   const [user, setUser] = useState<User | null>(null)
   const [campaign, setCampaign] = useState<Campaign | null>(null)
+  const [nodes, setNodes] = useState<Node[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'observations' | 'findings' | 'tasks' | 'chat'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'observations' | 'findings' | 'tasks' | 'nodes' | 'chat'>('overview')
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -48,7 +62,10 @@ export default function CampaignDetail() {
         if (user) {
           setUser(user)
           if (id) {
-            await fetchCampaign()
+            await Promise.all([
+              fetchCampaign(),
+              fetchNodes()
+            ])
           }
         } else {
           setError('Please sign in to access campaigns')
@@ -88,6 +105,29 @@ export default function CampaignDetail() {
     }
   }
 
+  const fetchNodes = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+
+      const response = await fetch('/api/nodes', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (data.nodes) {
+        setNodes(data.nodes)
+      } else {
+        console.error('Failed to fetch nodes:', data.error)
+      }
+    } catch (error) {
+      console.error('Failed to fetch nodes:', error)
+    }
+  }
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'owner': return 'bg-purple-100 text-purple-800'
@@ -104,6 +144,24 @@ export default function CampaignDetail() {
       case 'paused': return 'bg-yellow-100 text-yellow-800'
       case 'completed': return 'bg-blue-100 text-blue-800'
       case 'archived': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getNodeStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-100 text-green-800'
+      case 'offline': return 'bg-gray-100 text-gray-800'
+      case 'error': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getNodeTypeBadgeColor = (nodeType: string) => {
+    switch (nodeType) {
+      case 'scanner': return 'bg-blue-100 text-blue-800'
+      case 'monitor': return 'bg-purple-100 text-purple-800'
+      case 'analyzer': return 'bg-orange-100 text-orange-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -268,6 +326,12 @@ export default function CampaignDetail() {
               onClick={() => setActiveTab('tasks')}
             >
               Tasks
+            </button>
+            <button
+              className={`campaign-tab ${activeTab === 'nodes' ? 'active' : ''}`}
+              onClick={() => setActiveTab('nodes')}
+            >
+              Nodes
             </button>
             <button
               className={`campaign-tab ${activeTab === 'chat' ? 'active' : ''}`}
@@ -490,6 +554,102 @@ export default function CampaignDetail() {
                     </p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'nodes' && (
+              <div className="campaign-nodes">
+                <div className="nodes-header">
+                  <h2 className="section-title">Scanning Nodes</h2>
+                  <div className="nodes-status">
+                    <span className="nodes-count">{nodes.length} node{nodes.length !== 1 ? 's' : ''}</span>
+                    <span className="nodes-online">
+                      {nodes.filter(node => node.status === 'online').length} online
+                    </span>
+                  </div>
+                </div>
+                
+                {nodes.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-state-content">
+                      <div className="empty-state-icon">🖥️</div>
+                      <h3 className="empty-state-title">No scanning nodes</h3>
+                      <p className="empty-state-description">
+                        Connect Bastet scanning nodes to start collecting security data for this campaign.
+                      </p>
+                      <button className="cta-button">
+                        Add Node
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="nodes-list">
+                    {nodes.map((node) => (
+                      <div key={node.id} className="node-card">
+                        <div className="node-card-content">
+                          <div className="node-card-header">
+                            <div className="node-card-title-section">
+                              <h3 className="node-card-title">{node.name}</h3>
+                              <div className="node-card-badges">
+                                <span className={`badge ${getNodeStatusBadgeColor(node.status)}`}>
+                                  {node.status}
+                                </span>
+                                <span className={`badge ${getNodeTypeBadgeColor(node.node_type)}`}>
+                                  {node.node_type}
+                                </span>
+                                {node.websocket_connection && (
+                                  <span className="badge bg-green-100 text-green-800">
+                                    connected
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {node.description && (
+                            <p className="node-card-description">
+                              {node.description}
+                            </p>
+                          )}
+                          
+                          <div className="node-card-meta">
+                            <div className="node-meta-row">
+                              <span className="node-meta-label">Last Seen:</span>
+                              <span className="node-meta-value">
+                                {node.last_seen ? formatDate(node.last_seen) : 'Never'}
+                              </span>
+                            </div>
+                            <div className="node-meta-row">
+                              <span className="node-meta-label">Created:</span>
+                              <span className="node-meta-value">
+                                {formatDate(node.created_at)}
+                              </span>
+                            </div>
+                            {node.info && (
+                              <div className="node-card-info">
+                                <details className="node-info-details">
+                                  <summary className="node-info-summary">Node Information</summary>
+                                  <pre className="node-info-content">
+                                    {JSON.stringify(node.info, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="node-card-actions">
+                          <button className="node-action-btn">
+                            View Details
+                          </button>
+                          <button className="node-action-btn">
+                            Configure
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
