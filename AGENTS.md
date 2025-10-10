@@ -195,6 +195,14 @@ vercel logs <deployment>         # View deployment logs
 - **Solution**: Run `supabase-schema.sql` in Supabase dashboard
 - **File**: `supabase-schema.sql`
 
+#### Vercel Deployment Issues
+- **Issue**: "No Output Directory named 'dist' found"
+- **Solution**: Add `vercel.json` with `{"framework": "nextjs"}` to override Vite settings
+- **Issue**: Build errors in deployment but works locally
+- **Solution**: Check environment variables are set in Vercel dashboard
+- **Issue**: Routes manifest errors
+- **Solution**: Simplify `next.config.js`, remove complex outputFileTracingRoot settings
+
 ### Development Workflow
 
 1. **Make Changes**: Edit code in appropriate directories
@@ -202,7 +210,15 @@ vercel logs <deployment>         # View deployment logs
 3. **Run Tests**: Execute security test suite
 4. **Commit Changes**: Always commit with descriptive messages
 5. **Push to GitHub**: Triggers automatic deployment
-6. **Monitor Deployment**: Check Vercel logs for issues
+6. **🚨 CRITICAL: Check Vercel Deployment Logs**: ALWAYS verify deployment success
+   ```bash
+   vercel ls                    # Check deployment status
+   vercel logs <deployment-id>  # Check logs for errors
+   ```
+   - Look for "● Ready" status (not "● Error")
+   - Check build logs for compilation errors
+   - Verify environment variables are set correctly
+   - Test the deployed URL to ensure it's working
 
 ### Key Learnings from Development
 
