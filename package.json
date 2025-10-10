@@ -21,7 +21,10 @@
     "test:ci": "npm run test:unit:security && npm run test:e2e:security",
     "security:audit": "npm audit --audit-level moderate",
     "security:fix": "npm audit fix",
-    "security:scan": "npm run security:audit && npm run test:security"
+    "security:scan": "npm run security:audit && npm run test:security",
+    "security:socket": "npx @socketsecurity/cli scan",
+    "security:deps": "npm run security:audit && npm run security:socket",
+    "security:check": "npm run security:deps && npm run test:security"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

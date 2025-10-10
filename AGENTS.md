@@ -29,6 +29,7 @@ This project is a **Next.js full-stack application** for Bastet Console - a vuln
 - **Authentication**: Custom Google OAuth 2.0 implementation
 - **Deployment**: Vercel
 - **Testing**: Jest (unit), Playwright (E2E), comprehensive security tests
+- **Security**: Socket.dev (supply chain), npm audit, custom security tests
 
 ### Project Structure
 ```
@@ -271,13 +272,42 @@ vercel logs <deployment>         # View deployment logs
 7. **Test coverage** should remain above 90%
 8. **Documentation** should be updated with any changes
 
+### Supply Chain Security with Socket.dev
+
+**Socket.dev Integration:**
+- **Configuration**: `socket.yml` - Security policies and monitoring rules
+- **GitHub Actions**: `.github/workflows/socket-security.yml` - Automated scanning
+- **CLI Integration**: `npm run security:socket` - Local security scanning
+- **Documentation**: `SUPPLY_CHAIN_SECURITY.md` - Comprehensive security guide
+
+**Security Features:**
+- **Malware Detection**: Identifies malicious packages
+- **Typo Squatting**: Detects deceptive package names
+- **Install Scripts**: Flags packages that execute code during installation
+- **Native Code**: Identifies packages with compiled binaries
+- **Telemetry**: Detects packages that collect user data
+- **Vulnerability Scanning**: Checks for known security vulnerabilities
+
+**Setup Instructions:**
+1. **Install Socket.dev GitHub App**: https://github.com/apps/socket-security
+2. **Configure Repository**: Select `bastet-ai/bastet-console` for monitoring
+3. **Set API Key**: Add `SOCKET_API_KEY` to GitHub repository secrets
+4. **Test Integration**: Run `npm run security:socket` locally
+
+**Monitoring:**
+- **Pull Request Comments**: Security alerts on dependency changes
+- **GitHub Issues**: Critical security problems automatically flagged
+- **Daily Scans**: Scheduled security checks via GitHub Actions
+- **Artifact Storage**: Security scan results stored for 30 days
+
 ### Contact & Resources
 
 - **Repository**: https://github.com/bastet-ai/bastet-console
 - **Deployment**: https://console.bastet.ai
-- **Documentation**: See README.md, SECURITY.md, TODO.md
+- **Documentation**: See README.md, SECURITY.md, SUPPLY_CHAIN_SECURITY.md, TODO.md
 - **Issues**: Use GitHub Issues for bug reports
 - **Security**: Use GitHub Security Advisories for vulnerabilities
+- **Socket.dev**: https://socket.dev/ - Supply chain security monitoring
 
 ---
 

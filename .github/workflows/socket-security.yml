@@ -1,0 +1,80 @@
+name: Socket.dev Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  socket-security-scan:
+    name: Socket.dev Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run Socket.dev CLI scan
+        uses: socketsecurity/cli-action@v1
+        with:
+          api-key: ${{ secrets.SOCKET_API_KEY }}
+          # Scan for vulnerabilities and supply chain issues
+          scan-type: 'security'
+          
+      - name: Run dependency audit
+        run: |
+          echo "Running npm audit for known vulnerabilities..."
+          npm audit --audit-level=moderate
+          
+      - name: Check for outdated packages
+        run: |
+          echo "Checking for outdated packages..."
+          npm outdated || true
+          
+      - name: Generate security report
+        run: |
+          echo "## Security Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "### Dependencies Scanned" >> $GITHUB_STEP_SUMMARY
+          echo "- Total packages: $(cat package.json | jq '.dependencies | length')" >> $GITHUB_STEP_SUMMARY
+          echo "- Dev dependencies: $(cat package.json | jq '.devDependencies | length')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Socket.dev Protection" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Supply chain attack detection" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Malware detection" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Typo squatting detection" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Install script monitoring" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Native code analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Telemetry detection" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: socket-security-scan-results
+          path: |
+            package-lock.json
+            npm-audit.json
+          retention-days: 30

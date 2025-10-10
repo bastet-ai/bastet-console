@@ -1,0 +1,71 @@
+# Socket.dev Configuration for Bastet Console
+# This file configures Socket.dev to monitor dependencies for supply chain security issues
+
+# Enable Socket.dev monitoring for this repository
+socket:
+  enabled: true
+  
+# Security policies
+security:
+  # Block packages with known vulnerabilities
+  block_vulnerable: true
+  
+  # Block packages with suspicious behavior
+  block_suspicious: true
+  
+  # Block packages with install scripts (potential malware)
+  block_install_scripts: true
+  
+  # Block packages with native code (potential security risk)
+  block_native_code: true
+  
+  # Block packages with telemetry (privacy concern)
+  block_telemetry: true
+  
+  # Block packages that look like typo squatting
+  block_typo_squatting: true
+
+# Dependency monitoring
+dependencies:
+  # Monitor all package.json changes
+  monitor_package_json: true
+  
+  # Monitor package-lock.json changes
+  monitor_package_lock: true
+  
+  # Monitor yarn.lock changes (if used)
+  monitor_yarn_lock: true
+
+# Alert configuration
+alerts:
+  # Comment on pull requests with security issues
+  comment_on_pr: true
+  
+  # Create GitHub issues for critical security issues
+  create_issues: true
+  
+  # Send notifications for high-severity issues
+  notify_high_severity: true
+
+# Ignore specific packages (if needed)
+ignore:
+  # Example: ignore specific packages that are known safe
+  # packages:
+  #   - "some-known-safe-package"
+  
+  # Example: ignore specific alert types for specific packages
+  # alerts:
+  #   - package: "some-package"
+  #     type: "install_scripts"
+
+# Custom rules
+rules:
+  # Require approval for packages with high risk scores
+  require_approval_risk_threshold: 0.7
+  
+  # Block packages from untrusted publishers
+  block_untrusted_publishers: true
+  
+  # Require packages to have recent updates (within 1 year)
+  require_recent_updates: true
+  recent_updates_days: 365
