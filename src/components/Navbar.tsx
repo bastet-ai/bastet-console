@@ -1,5 +1,4 @@
 import { clsx } from 'clsx';
-import './Navbar.css';
 
 type NavbarProps = {
   user: any;

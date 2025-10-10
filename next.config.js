@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js']
-  },
+  reactStrictMode: true,
+  serverExternalPackages: ['@supabase/supabase-js'],
+  outputFileTracingRoot: require('path').join(__dirname, '../../'),
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
   },

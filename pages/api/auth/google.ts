@@ -18,24 +18,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { idToken } = req.body
+    const { code } = req.body
     
-    if (!idToken) {
-      return res.status(400).json({ error: 'ID token is required' })
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code is required' })
     }
     
-    // Verify Google ID token
-    const ticket = await googleClient.verifyIdToken({
-      idToken: idToken,
-      audience: process.env.GOOGLE_CLIENT_ID!
+    // Exchange authorization code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/google/callback`
+      })
     })
+
+    const tokenData = await tokenResponse.json()
     
-    const payload = ticket.getPayload()
-    if (!payload) {
-      return res.status(400).json({ error: 'Invalid token payload' })
+    if (!tokenData.access_token) {
+      return res.status(400).json({ error: 'Failed to exchange code for tokens' })
+    }
+
+    // Get user info from Google
+    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`
+      }
+    })
+
+    const userData = await userResponse.json()
+    
+    if (!userData.id) {
+      return res.status(400).json({ error: 'Failed to get user information' })
     }
     
-    const { sub: googleId, email, name, picture } = payload
+    const { id: googleId, email, name, picture } = userData
     
     // Check if user exists in database
     let { data: user, error: fetchError } = await supabase

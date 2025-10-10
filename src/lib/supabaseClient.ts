@@ -1,7 +1,27 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? '';
+// TypeScript declaration for Google Identity Services
+declare global {
+  interface Window {
+    google: {
+      accounts: {
+        oauth2: {
+          initCodeClient: (config: {
+            client_id: string;
+            scope: string;
+            ux_mode: string;
+            callback: (response: { code: string }) => void;
+          }) => {
+            requestCode: () => void;
+          };
+        };
+      };
+    };
+  }
+}
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
 
 const placeholderValues = ['YOUR_SUPABASE_URL', 'YOUR_SUPABASE_ANON_KEY'];
 
@@ -81,39 +101,65 @@ export async function updateUserTokens(userId: string, accessToken: string, refr
 // Google OAuth functions using our Next.js API routes
 export async function signInWithGoogle(): Promise<{ user?: User; error?: string }> {
   try {
-    // Load Google OAuth library dynamically
-    const { gapi } = await import('gapi-script');
-    
-    // Initialize Google API
-    await gapi.load('auth2', async () => {
-      await gapi.auth2.init({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
-      });
-    });
-
-    // Sign in with Google
-    const authInstance = gapi.auth2.getAuthInstance();
-    const googleUser = await authInstance.signIn();
-    const idToken = googleUser.getAuthResponse().id_token;
-
-    // Send to our backend API
-    const response = await fetch('/api/auth/google', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ idToken })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      // Store token in localStorage
-      localStorage.setItem('auth_token', data.token);
-      return { user: data.user };
-    } else {
-      return { error: data.error || 'Authentication failed' };
+    // Check if Google Identity Services is available
+    if (typeof window === 'undefined' || !window.google) {
+      return { error: 'Google Identity Services not loaded' };
     }
+
+    // Use Google Identity Services for OAuth
+    const client = window.google.accounts.oauth2.initCodeClient({
+      client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+      scope: 'openid email profile',
+      ux_mode: 'popup',
+      callback: async (response: any) => {
+        try {
+          // Exchange authorization code for tokens
+          const tokenResponse = await fetch('/api/auth/google', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code: response.code })
+          });
+
+          const data = await tokenResponse.json();
+
+          if (data.success) {
+            // Store token in localStorage
+            localStorage.setItem('auth_token', data.token);
+            // Return user data through a custom event
+            window.dispatchEvent(new CustomEvent('googleAuthSuccess', { detail: data.user }));
+          } else {
+            window.dispatchEvent(new CustomEvent('googleAuthError', { detail: data.error }));
+          }
+        } catch (error) {
+          console.error('Token exchange error:', error);
+          window.dispatchEvent(new CustomEvent('googleAuthError', { detail: 'Token exchange failed' }));
+        }
+      }
+    });
+
+    // Request authorization code
+    client.requestCode();
+
+    // Return a promise that resolves when authentication completes
+    return new Promise((resolve) => {
+      const handleSuccess = (event: any) => {
+        window.removeEventListener('googleAuthSuccess', handleSuccess);
+        window.removeEventListener('googleAuthError', handleError);
+        resolve({ user: event.detail });
+      };
+
+      const handleError = (event: any) => {
+        window.removeEventListener('googleAuthSuccess', handleSuccess);
+        window.removeEventListener('googleAuthError', handleError);
+        resolve({ error: event.detail });
+      };
+
+      window.addEventListener('googleAuthSuccess', handleSuccess);
+      window.addEventListener('googleAuthError', handleError);
+    });
+
   } catch (error) {
     console.error('Google OAuth error:', error);
     return { error: 'Failed to authenticate with Google' };

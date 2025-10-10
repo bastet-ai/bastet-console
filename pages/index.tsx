@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Navbar from '../src/components/Navbar'
-import HeroSection from '../src/sections/HeroSection'
-import FeaturesSection from '../src/sections/FeaturesSection'
-import WorkflowSection from '../src/sections/WorkflowSection'
-import AdministrationSection from '../src/sections/AdministrationSection'
-import Footer from '../src/components/Footer'
-import { signInWithGoogle, signOut, verifySession } from '../src/lib/supabaseClient'
+import { HeroSection } from '../src/sections/HeroSection'
+import { FeaturesSection } from '../src/sections/FeaturesSection'
+import { WorkflowSection } from '../src/sections/WorkflowSection'
+import { AdministrationSection } from '../src/sections/AdministrationSection'
+import { Footer } from '../src/components/Footer'
+import { signInWithGoogle, signOut, verifySession, type User, isSupabaseConfigured } from '../src/lib/supabaseClient'
 
 export default function Home() {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Sign in failed:', error)
-      alert('Sign in failed: ' + error.message)
+      alert('Sign in failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setLoading(false)
     }
@@ -88,7 +88,7 @@ export default function Home() {
           <HeroSection user={user} onSignIn={handleGoogleSignIn} />
           <FeaturesSection />
           <WorkflowSection />
-          <AdministrationSection />
+          <AdministrationSection user={user} isSupabaseConfigured={isSupabaseConfigured} />
         </main>
         
         <Footer />
