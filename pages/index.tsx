@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import Navbar from '../src/components/Navbar'
 import { HeroSection } from '../src/sections/HeroSection'
 import { FeaturesSection } from '../src/sections/FeaturesSection'
@@ -9,6 +10,7 @@ import { Footer } from '../src/components/Footer'
 import { signInWithGoogle, signOut, verifySession, type User, isSupabaseConfigured } from '../src/lib/supabaseClient'
 
 export default function Home() {
+  const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -19,6 +21,9 @@ export default function Home() {
         const { user, error } = await verifySession()
         if (user) {
           setUser(user)
+          // Redirect logged-in users to dashboard
+          router.push('/dashboard')
+          return
         }
       } catch (error) {
         console.error('Auth check failed:', error)
@@ -28,7 +33,7 @@ export default function Home() {
     }
 
     checkAuth()
-  }, [])
+  }, [router])
 
   const handleGoogleSignIn = async () => {
     try {
@@ -36,6 +41,8 @@ export default function Home() {
       const { user, error } = await signInWithGoogle()
       if (user) {
         setUser(user)
+        // Redirect to dashboard after successful login
+        router.push('/dashboard')
       } else if (error) {
         console.error('Sign in failed:', error)
         alert('Sign in failed: ' + error)
@@ -78,19 +85,19 @@ export default function Home() {
       </Head>
 
       <div className="min-h-screen bg-gray-50">
-        <Navbar 
-          user={user} 
+        <Navbar
+          user={user}
           onSignIn={handleGoogleSignIn}
           onSignOut={handleSignOut}
         />
-        
+
         <main>
           <HeroSection user={user} onSignIn={handleGoogleSignIn} />
           <FeaturesSection />
           <WorkflowSection />
           <AdministrationSection user={user} isSupabaseConfigured={isSupabaseConfigured} />
         </main>
-        
+
         <Footer />
       </div>
     </>

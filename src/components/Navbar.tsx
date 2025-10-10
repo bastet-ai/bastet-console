@@ -19,6 +19,7 @@ export default function Navbar({ user, onSignOut, onSignIn }: NavbarProps) {
           <a href="#about">About</a>
           <a href="#features">Features</a>
           <a href="#administration">Administration</a>
+          {user && <a href="/dashboard">Dashboard</a>}
           {user && <a href="/campaigns">Campaigns</a>}
         </nav>
         
