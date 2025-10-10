@@ -17,6 +17,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Validate required environment variables
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.JWT_SECRET) {
+    console.error('Missing required environment variables')
+    return res.status(500).json({ error: 'Server configuration error' })
+  }
+
   try {
     const { code } = req.body
     
@@ -35,14 +41,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
         code: code,
         grant_type: 'authorization_code',
-        redirect_uri: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/google/callback`
+        redirect_uri: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}`
       })
     })
 
     const tokenData = await tokenResponse.json()
     
+    if (!tokenResponse.ok) {
+      console.error('Token exchange failed:', tokenData)
+      return res.status(400).json({ error: 'Failed to exchange code for tokens', details: tokenData })
+    }
+    
     if (!tokenData.access_token) {
-      return res.status(400).json({ error: 'Failed to exchange code for tokens' })
+      console.error('No access token in response:', tokenData)
+      return res.status(400).json({ error: 'Failed to exchange code for tokens', details: tokenData })
     }
 
     // Get user info from Google
@@ -54,8 +66,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const userData = await userResponse.json()
     
+    if (!userResponse.ok) {
+      console.error('User info fetch failed:', userData)
+      return res.status(400).json({ error: 'Failed to get user information', details: userData })
+    }
+    
     if (!userData.id) {
-      return res.status(400).json({ error: 'Failed to get user information' })
+      console.error('No user ID in response:', userData)
+      return res.status(400).json({ error: 'Failed to get user information', details: userData })
     }
     
     const { id: googleId, email, name, picture } = userData
