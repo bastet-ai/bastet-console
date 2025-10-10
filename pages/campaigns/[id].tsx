@@ -1,0 +1,517 @@
+import { useState, useEffect } from 'react'
+import Head from 'next/head'
+import Link from 'next/link'
+import { useRouter } from 'next/router'
+import Navbar from '../../src/components/Navbar'
+import { type User, verifySession } from '../../src/lib/supabaseClient'
+
+interface CampaignMember {
+  id: string
+  role: string
+  joined_at: string
+  users: {
+    id: string
+    name: string
+    email: string
+    avatar_url?: string
+  }
+}
+
+interface Campaign {
+  id: string
+  name: string
+  description?: string
+  scope: string
+  status: string
+  privacy: string
+  owner_id: string
+  created_at: string
+  updated_at: string
+  userRole: string
+  campaign_members: CampaignMember[]
+}
+
+export default function CampaignDetail() {
+  const router = useRouter()
+  const { id } = router.query
+  
+  const [user, setUser] = useState<User | null>(null)
+  const [campaign, setCampaign] = useState<Campaign | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'observations' | 'findings' | 'tasks' | 'chat'>('overview')
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { user, error } = await verifySession()
+        if (user) {
+          setUser(user)
+          if (id) {
+            await fetchCampaign()
+          }
+        } else {
+          setError('Please sign in to access campaigns')
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error)
+        setError('Authentication failed')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [id])
+
+  const fetchCampaign = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+
+      const response = await fetch(`/api/campaigns/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setCampaign(data.campaign)
+      } else {
+        setError(data.error || 'Failed to fetch campaign')
+      }
+    } catch (error) {
+      console.error('Failed to fetch campaign:', error)
+      setError('Failed to fetch campaign')
+    }
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'owner': return 'bg-purple-100 text-purple-800'
+      case 'manager': return 'bg-blue-100 text-blue-800'
+      case 'collaborator': return 'bg-green-100 text-green-800'
+      case 'watcher': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800'
+      case 'paused': return 'bg-yellow-100 text-yellow-800'
+      case 'completed': return 'bg-blue-100 text-blue-800'
+      case 'archived': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const canManageCampaign = () => {
+    return campaign?.userRole && ['owner', 'manager'].includes(campaign.userRole)
+  }
+
+  const canCreateContent = () => {
+    return campaign?.userRole && ['owner', 'manager', 'collaborator'].includes(campaign.userRole)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (error && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Link href="/" className="cta-button">
+            Go to Homepage
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !campaign) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Campaign Not Found</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Link href="/campaigns" className="cta-button">
+            Back to Campaigns
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (!campaign) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <Head>
+        <title>{campaign.name} - Bastet Console</title>
+        <meta name="description" content={`Campaign: ${campaign.name}`} />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.svg" />
+      </Head>
+
+      <div className="min-h-screen bg-gray-50">
+        <Navbar 
+          user={user} 
+          onSignIn={() => window.location.href = '/'}
+          onSignOut={async () => {
+            await fetch('/api/auth/logout', { method: 'POST' })
+            localStorage.removeItem('auth_token')
+            window.location.href = '/'
+          }}
+        />
+        
+        <main className="container mx-auto px-4 py-8">
+          {/* Campaign Header */}
+          <div className="campaign-header">
+            <div className="campaign-header-content">
+              <div className="campaign-header-top">
+                <Link href="/campaigns" className="campaign-back-link">
+                  ← Back to Campaigns
+                </Link>
+                <div className="campaign-header-badges">
+                  <span className={`badge ${getStatusBadgeColor(campaign.status)}`}>
+                    {campaign.status}
+                  </span>
+                  <span className={`badge ${getRoleBadgeColor(campaign.userRole)}`}>
+                    {campaign.userRole}
+                  </span>
+                  {campaign.privacy === 'public' && (
+                    <span className="badge bg-orange-100 text-orange-800">
+                      public
+                    </span>
+                  )}
+                </div>
+              </div>
+              <h1 className="campaign-title">{campaign.name}</h1>
+              {campaign.description && (
+                <p className="campaign-description">{campaign.description}</p>
+              )}
+            </div>
+            {canManageCampaign() && (
+              <div className="campaign-header-actions">
+                <button className="form-button form-button-secondary">
+                  Edit Campaign
+                </button>
+                <button className="form-button form-button-primary">
+                  Manage Members
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Campaign Scope */}
+          <div className="campaign-scope-section">
+            <h2 className="section-title">Campaign Scope</h2>
+            <div className="campaign-scope-content">
+              {campaign.scope}
+            </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="campaign-tabs">
+            <button
+              className={`campaign-tab ${activeTab === 'overview' ? 'active' : ''}`}
+              onClick={() => setActiveTab('overview')}
+            >
+              Overview
+            </button>
+            <button
+              className={`campaign-tab ${activeTab === 'members' ? 'active' : ''}`}
+              onClick={() => setActiveTab('members')}
+            >
+              Members ({campaign.campaign_members.length})
+            </button>
+            <button
+              className={`campaign-tab ${activeTab === 'observations' ? 'active' : ''}`}
+              onClick={() => setActiveTab('observations')}
+            >
+              Observations
+            </button>
+            <button
+              className={`campaign-tab ${activeTab === 'findings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('findings')}
+            >
+              Findings
+            </button>
+            <button
+              className={`campaign-tab ${activeTab === 'tasks' ? 'active' : ''}`}
+              onClick={() => setActiveTab('tasks')}
+            >
+              Tasks
+            </button>
+            <button
+              className={`campaign-tab ${activeTab === 'chat' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chat')}
+            >
+              Chat
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="campaign-content">
+            {activeTab === 'overview' && (
+              <div className="campaign-overview">
+                <div className="overview-grid">
+                  <div className="overview-card">
+                    <h3 className="overview-card-title">Campaign Information</h3>
+                    <div className="overview-card-content">
+                      <div className="info-row">
+                        <span className="info-label">Status:</span>
+                        <span className={`badge ${getStatusBadgeColor(campaign.status)}`}>
+                          {campaign.status}
+                        </span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Privacy:</span>
+                        <span className={`badge ${campaign.privacy === 'public' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {campaign.privacy}
+                        </span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Created:</span>
+                        <span>{formatDate(campaign.created_at)}</span>
+                      </div>
+                      <div className="info-row">
+                        <span className="info-label">Last Updated:</span>
+                        <span>{formatDate(campaign.updated_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overview-card">
+                    <h3 className="overview-card-title">Team Members</h3>
+                    <div className="overview-card-content">
+                      <div className="members-preview">
+                        {campaign.campaign_members.slice(0, 3).map((member) => (
+                          <div key={member.id} className="member-preview">
+                            <div className="member-avatar">
+                              {member.users.avatar_url ? (
+                                <img 
+                                  src={member.users.avatar_url} 
+                                  alt={member.users.name}
+                                  className="member-avatar-img"
+                                />
+                              ) : (
+                                <div className="member-avatar-fallback">
+                                  {member.users.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="member-info">
+                              <span className="member-name">{member.users.name}</span>
+                              <span className={`member-role ${getRoleBadgeColor(member.role)}`}>
+                                {member.role}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {campaign.campaign_members.length > 3 && (
+                          <div className="member-more">
+                            +{campaign.campaign_members.length - 3} more
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overview-card">
+                    <h3 className="overview-card-title">Quick Actions</h3>
+                    <div className="overview-card-content">
+                      <div className="quick-actions">
+                        {canCreateContent() && (
+                          <>
+                            <button className="quick-action-btn">
+                              Create Task
+                            </button>
+                            <button className="quick-action-btn">
+                              Add Observation
+                            </button>
+                          </>
+                        )}
+                        <button className="quick-action-btn">
+                          View All Members
+                        </button>
+                        <button className="quick-action-btn">
+                          Open Chat
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'members' && (
+              <div className="campaign-members">
+                <div className="members-header">
+                  <h2 className="section-title">Team Members</h2>
+                  {canManageCampaign() && (
+                    <button className="form-button form-button-primary">
+                      Add Member
+                    </button>
+                  )}
+                </div>
+                <div className="members-list">
+                  {campaign.campaign_members.map((member) => (
+                    <div key={member.id} className="member-card">
+                      <div className="member-card-content">
+                        <div className="member-avatar">
+                          {member.users.avatar_url ? (
+                            <img 
+                              src={member.users.avatar_url} 
+                              alt={member.users.name}
+                              className="member-avatar-img"
+                            />
+                          ) : (
+                            <div className="member-avatar-fallback">
+                              {member.users.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="member-details">
+                          <h3 className="member-name">{member.users.name}</h3>
+                          <p className="member-email">{member.users.email}</p>
+                          <div className="member-meta">
+                            <span className={`member-role ${getRoleBadgeColor(member.role)}`}>
+                              {member.role}
+                            </span>
+                            <span className="member-joined">
+                              Joined {formatDate(member.joined_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      {canManageCampaign() && member.role !== 'owner' && (
+                        <div className="member-actions">
+                          <button className="member-action-btn">
+                            Change Role
+                          </button>
+                          <button className="member-action-btn member-action-btn-danger">
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'observations' && (
+              <div className="campaign-observations">
+                <div className="observations-header">
+                  <h2 className="section-title">Observations</h2>
+                  {canCreateContent() && (
+                    <button className="form-button form-button-primary">
+                      Add Observation
+                    </button>
+                  )}
+                </div>
+                <div className="empty-state">
+                  <div className="empty-state-content">
+                    <div className="empty-state-icon">🔍</div>
+                    <h3 className="empty-state-title">No observations yet</h3>
+                    <p className="empty-state-description">
+                      Observations from scanning nodes will appear here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'findings' && (
+              <div className="campaign-findings">
+                <div className="findings-header">
+                  <h2 className="section-title">Findings</h2>
+                  {canCreateContent() && (
+                    <button className="form-button form-button-primary">
+                      Create Finding
+                    </button>
+                  )}
+                </div>
+                <div className="empty-state">
+                  <div className="empty-state-content">
+                    <div className="empty-state-icon">🎯</div>
+                    <h3 className="empty-state-title">No findings yet</h3>
+                    <p className="empty-state-description">
+                      Escalate observations to findings to track remediation.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'tasks' && (
+              <div className="campaign-tasks">
+                <div className="tasks-header">
+                  <h2 className="section-title">Tasks</h2>
+                  {canCreateContent() && (
+                    <button className="form-button form-button-primary">
+                      Create Task
+                    </button>
+                  )}
+                </div>
+                <div className="empty-state">
+                  <div className="empty-state-content">
+                    <div className="empty-state-icon">📋</div>
+                    <h3 className="empty-state-title">No tasks yet</h3>
+                    <p className="empty-state-description">
+                      Create scan jobs and other tasks for this campaign.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'chat' && (
+              <div className="campaign-chat">
+                <div className="chat-header">
+                  <h2 className="section-title">Campaign Chat</h2>
+                </div>
+                <div className="empty-state">
+                  <div className="empty-state-content">
+                    <div className="empty-state-icon">💬</div>
+                    <h3 className="empty-state-title">No messages yet</h3>
+                    <p className="empty-state-description">
+                      Start a conversation with your team members.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+    </>
+  )
+}
