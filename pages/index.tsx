@@ -6,7 +6,6 @@ import { FeaturesSection } from '../src/sections/FeaturesSection'
 import { WorkflowSection } from '../src/sections/WorkflowSection'
 import { AdministrationSection } from '../src/sections/AdministrationSection'
 import { Footer } from '../src/components/Footer'
-import { ConfigValidationBanner } from '../src/components/ConfigValidationBanner'
 import { signInWithGoogle, signOut, verifySession, type User, isSupabaseConfigured } from '../src/lib/supabaseClient'
 
 export default function Home() {
@@ -84,10 +83,6 @@ export default function Home() {
           onSignIn={handleGoogleSignIn}
           onSignOut={handleSignOut}
         />
-        
-        <div className="container mx-auto px-4">
-          <ConfigValidationBanner />
-        </div>
         
         <main>
           <HeroSection user={user} onSignIn={handleGoogleSignIn} />
