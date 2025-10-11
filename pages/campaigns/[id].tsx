@@ -40,6 +40,9 @@ interface Campaign {
   owner_id: string
   created_at: string
   updated_at: string
+  hackerone_handle?: string
+  hackerone_last_synced?: string
+  hackerone_metadata?: any
   userRole: string
   campaign_members: CampaignMember[]
 }
@@ -53,6 +56,8 @@ export default function CampaignDetail() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'observations' | 'findings' | 'tasks' | 'nodes' | 'chat'>('overview')
 
   useEffect(() => {
@@ -184,6 +189,57 @@ export default function CampaignDetail() {
     return campaign?.userRole && ['owner', 'manager', 'collaborator'].includes(campaign.userRole)
   }
 
+  const handleSync = async () => {
+    if (!campaign?.id || !campaign.hackerone_handle) return
+
+    setSyncing(true)
+    setSyncError(null)
+
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch('/api/campaigns/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ campaignId: campaign.id })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Refresh campaign data
+        setCampaign({ ...campaign, ...data.campaign })
+        alert('Campaign synced successfully with HackerOne!')
+      } else {
+        setSyncError(data.error || 'Failed to sync campaign')
+      }
+    } catch (error) {
+      console.error('Sync error:', error)
+      setSyncError('Failed to sync campaign. Please try again.')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const formatSyncStatus = () => {
+    if (!campaign?.hackerone_handle) return null
+    if (!campaign.hackerone_last_synced) return 'Never synced'
+    
+    const syncDate = new Date(campaign.hackerone_last_synced)
+    const now = new Date()
+    const diffMs = now.getTime() - syncDate.getTime()
+    const diffHours = diffMs / (1000 * 60 * 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffHours < 1) return 'Synced less than an hour ago'
+    if (diffHours < 24) return `Synced ${Math.floor(diffHours)} hour${Math.floor(diffHours) > 1 ? 's' : ''} ago`
+    if (diffDays < 30) return `Synced ${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+    
+    return `Last synced: ${formatDate(campaign.hackerone_last_synced)}`
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -289,7 +345,43 @@ export default function CampaignDetail() {
 
           {/* Campaign Scope */}
           <div className="campaign-scope-section">
-            <h2 className="section-title">Campaign Scope</h2>
+            <div className="scope-header">
+              <h2 className="section-title">Campaign Scope</h2>
+              {campaign.hackerone_handle && (
+                <div className="hackerone-sync-status">
+                  <div className="sync-info">
+                    <span className="badge bg-purple-100 text-purple-800">
+                      🔗 HackerOne: {campaign.hackerone_handle}
+                    </span>
+                    <span className="sync-time">{formatSyncStatus()}</span>
+                  </div>
+                  {canManageCampaign() && (
+                    <button
+                      onClick={handleSync}
+                      disabled={syncing}
+                      className={`sync-button ${syncing ? 'syncing' : ''}`}
+                    >
+                      {syncing ? (
+                        <>
+                          <span className="sync-spinner"></span>
+                          Syncing...
+                        </>
+                      ) : (
+                        <>
+                          <span>🔄</span>
+                          Re-sync with HackerOne
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            {syncError && (
+              <div className="sync-error">
+                {syncError}
+              </div>
+            )}
             <div className="campaign-scope-content">
               {campaign.scope}
             </div>

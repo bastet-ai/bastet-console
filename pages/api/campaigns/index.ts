@@ -14,6 +14,8 @@ interface CreateCampaignRequest {
   description?: string
   scope: string
   privacy?: 'private' | 'public'
+  hackerone_handle?: string
+  hackerone_metadata?: any
 }
 
 // Campaign response interface
@@ -87,18 +89,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Validation failed', details: errors })
       }
 
-      const { name, description, scope, privacy = 'private' }: CreateCampaignRequest = req.body
+      const { name, description, scope, privacy = 'private', hackerone_handle, hackerone_metadata }: CreateCampaignRequest = req.body
+
+      // Prepare campaign data
+      const campaignData: any = {
+        name: name.trim(),
+        description: description?.trim(),
+        scope: scope.trim(),
+        privacy,
+        owner_id: userId
+      }
+
+      // Add HackerOne metadata if provided
+      if (hackerone_handle) {
+        campaignData.hackerone_handle = hackerone_handle
+        campaignData.hackerone_last_synced = new Date().toISOString()
+        campaignData.hackerone_metadata = hackerone_metadata || null
+      }
 
       // Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
-        .insert([{
-          name: name.trim(),
-          description: description?.trim(),
-          scope: scope.trim(),
-          privacy,
-          owner_id: userId
-        }])
+        .insert([campaignData])
         .select()
         .single()
 

@@ -12,6 +12,8 @@ interface CampaignData {
   description: string
   scope: string
   privacy: 'private' | 'public'
+  hackerone_handle?: string
+  hackerone_metadata?: any
 }
 
 type CreationMode = 'manual' | 'hackerone'
@@ -51,12 +53,14 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false }: Ca
       const data = await response.json()
 
       if (data.success && data.campaign) {
-        // Populate form with imported data
+        // Populate form with imported data including HackerOne metadata
         setFormData({
           name: data.campaign.name,
           description: data.campaign.description,
           scope: data.campaign.scope,
-          privacy: 'private' // Default to private
+          privacy: 'private', // Default to private
+          hackerone_handle: data.campaign.hackerone_handle,
+          hackerone_metadata: data.campaign.hackerone_metadata
         })
         setMode('manual') // Switch to manual mode with pre-filled data
       } else {
