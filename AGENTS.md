@@ -306,8 +306,10 @@ vercel logs <deployment>         # View deployment logs
 
 #### ✅ Database Schema & API
 - **Complete Database Schema**: Campaigns, members, observations, findings, tasks, and messages
+- **HackerOne Integration**: Columns for handle, last_synced, and metadata tracking
 - **Row Level Security (RLS)**: Proper access control for all tables
 - **API Endpoints**: Full CRUD operations for campaigns and member management
+- **Sync API**: Re-sync endpoint for updating campaigns from HackerOne
 - **User Roles**: Owner, Manager, Collaborator, Watcher with proper permissions
 
 #### ✅ User Interface Components
@@ -318,9 +320,12 @@ vercel logs <deployment>         # View deployment logs
 
 #### ✅ Key Features Implemented
 - **Campaign Creation**: Name, description, scope, privacy settings (private/public)
+- **HackerOne Import**: Import campaigns from HackerOne programs with one click
+- **HackerOne Sync**: Re-sync campaigns to update scope and policy from HackerOne
+- **Sync Tracking**: Display last sync timestamp and sync status indicators
 - **Member Management**: View team members with roles and avatars
 - **Role-based Access**: Different permissions for owners, managers, collaborators, watchers
-- **Tabbed Interface**: Overview, Members, Observations, Findings, Tasks, Chat
+- **Tabbed Interface**: Overview, Members, Observations, Findings, Tasks, Nodes, Chat
 - **Status Management**: Campaign status badges (active, paused, completed, archived)
 - **Privacy Controls**: Public/private campaign visibility
 
@@ -358,6 +363,41 @@ vercel logs <deployment>         # View deployment logs
 - **Manager**: Can manage members, create content, manage tasks
 - **Collaborator**: Can create observations, findings, tasks
 - **Watcher**: Read-only access to campaign data
+
+### HackerOne Integration
+
+**Import Functionality:**
+- **Mode Selector**: Two-button interface for Manual Entry vs HackerOne Import
+- **Program Handle Input**: Enter HackerOne program handle (e.g., "github", "security", "shopify")
+- **Auto-fill Campaign Data**: Automatically populates name, description, scope from program
+- **Tested Programs**: Successfully tested with security, github, shopify, coinbase programs
+
+**Sync Tracking:**
+- **Database Columns**: `hackerone_handle`, `hackerone_last_synced`, `hackerone_metadata`
+- **Initial Sync**: Timestamp recorded when campaign is created from HackerOne import
+- **Metadata Storage**: Program URL, state, bounty status, submission state, asset count
+
+**Re-sync Functionality:**
+- **Permission-based**: Only managers and owners can trigger re-sync
+- **API Endpoint**: `/api/campaigns/sync` - Updates campaign from latest HackerOne data
+- **Scope Updates**: Fetches latest in-scope assets and updates campaign scope
+- **Policy Updates**: Updates rules of engagement from HackerOne program policy
+- **Timestamp Updates**: Records sync timestamp for tracking freshness
+
+**UI/UX:**
+- **Sync Status Badge**: Purple badge showing "🔗 HackerOne: [handle]"
+- **Relative Timestamps**: "Synced X hours ago" / "Synced X days ago"
+- **Re-sync Button**: Purple gradient button with loading state
+- **Sync Spinner**: Animated spinner during sync operation
+- **Error Handling**: User-friendly error messages for failed syncs
+- **Success Notification**: Alert confirmation after successful sync
+
+**Technical Implementation:**
+- **GraphQL API**: Direct queries to HackerOne public GraphQL API
+- **JWT Authentication**: Secure API endpoint with user verification
+- **Permission Checks**: Role-based access control at API level
+- **Atomic Updates**: Database transactions for consistent state
+- **Type Safety**: Full TypeScript interfaces throughout
 
 **Next Phase Ready:**
 - Observations management (scan results from nodes)
