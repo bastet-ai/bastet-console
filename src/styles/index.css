@@ -105,7 +105,7 @@
 
 /* Campaign form styles */
 .campaign-form-container {
-  max-width: 600px;
+  max-width: 700px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -126,6 +126,153 @@
   color: #64748b;
   font-size: 1rem;
   margin: 0;
+}
+
+/* Mode selector */
+.campaign-mode-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.mode-button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-button:hover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.mode-button.active {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.1);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.mode-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mode-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+}
+
+.mode-text strong {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.mode-text small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+/* HackerOne import section */
+.hackerone-import-section {
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.15);
+}
+
+.import-header {
+  margin-bottom: 1.5rem;
+}
+
+.import-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 0.5rem 0;
+}
+
+.import-header p {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.import-input-group {
+  margin-bottom: 1.5rem;
+}
+
+.import-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.import-input-wrapper .form-input {
+  flex: 1;
+}
+
+.import-button {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(120deg, var(--accent), var(--accent-dark));
+  color: #0b1120;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.import-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(14, 165, 233, 0.3);
+}
+
+.import-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.import-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+}
+
+.import-info p {
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.875rem;
+}
+
+.import-info ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.import-info li {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
 }
 
 .campaign-form {
@@ -318,6 +465,30 @@
 @media (max-width: 768px) {
   .campaign-form-container {
     padding: 1rem;
+  }
+  
+  .campaign-mode-selector {
+    grid-template-columns: 1fr;
+  }
+  
+  .mode-button {
+    padding: 1rem;
+  }
+  
+  .mode-icon {
+    font-size: 1.5rem;
+  }
+  
+  .hackerone-import-section {
+    padding: 1.5rem;
+  }
+  
+  .import-input-wrapper {
+    flex-direction: column;
+  }
+  
+  .import-button {
+    width: 100%;
   }
   
   .campaign-form {
