@@ -1,3 +1,4 @@
+import type { ApiResult } from '../lib/apiResult'
 import { useState } from 'react'
 import { clsx } from 'clsx'
 
@@ -50,9 +51,9 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false }: Ca
         body: JSON.stringify({ programHandle: hackeroneHandle.trim() })
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaign: CampaignData }>
 
-      if (data.success && data.campaign) {
+      if (data.success) {
         // Populate form with imported data including HackerOne metadata
         setFormData({
           name: data.campaign.name,

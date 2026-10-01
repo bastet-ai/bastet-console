@@ -1,9 +1,10 @@
+import type { ApiResult } from '../src/lib/apiResult'
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Navbar from '../src/components/Navbar'
 import CampaignForm from '../src/components/CampaignForm'
-import { type User, verifySession } from '../src/lib/supabaseClient'
+import { type User, verifySession } from '../src/lib/authClient'
 
 // Extend Window interface for polling interval
 declare global {
@@ -107,7 +108,7 @@ export default function CampaignDashboard() {
         }
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaigns: Campaign[] }>
 
       if (data.success) {
         setCampaigns(data.campaigns)
@@ -131,7 +132,7 @@ export default function CampaignDashboard() {
         }
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ activities: Activity[] }>
 
       if (data.success) {
         setActivities(data.activities)
@@ -171,7 +172,7 @@ export default function CampaignDashboard() {
         body: JSON.stringify(campaignData)
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaign: Campaign }>
 
       if (data.success) {
         // Add the new campaign to the list

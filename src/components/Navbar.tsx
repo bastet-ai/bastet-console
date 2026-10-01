@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { type User } from '../lib/supabaseClient';
+import { type User } from '../lib/authClient';
 
 type NavbarProps = {
   user: User | null;

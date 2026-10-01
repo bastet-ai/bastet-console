@@ -1,9 +1,10 @@
+import type { ApiResult } from '../../src/lib/apiResult'
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Navbar from '../../src/components/Navbar'
 import CampaignForm from '../../src/components/CampaignForm'
-import { type User, verifySession } from '../../src/lib/supabaseClient'
+import { type User, verifySession } from '../../src/lib/authClient'
 
 interface Campaign {
   id: string
@@ -73,7 +74,7 @@ export default function CampaignsDashboard() {
         }
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaigns: Campaign[] }>
 
       if (data.success) {
         setCampaigns(data.campaigns)
@@ -106,7 +107,7 @@ export default function CampaignsDashboard() {
         body: JSON.stringify(campaignData)
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaign: Campaign }>
 
       if (data.success) {
         // Add the new campaign to the list

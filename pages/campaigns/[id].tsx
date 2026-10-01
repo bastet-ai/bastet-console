@@ -1,9 +1,10 @@
+import type { ApiResult } from '../../src/lib/apiResult'
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Navbar from '../../src/components/Navbar'
-import { type User, verifySession } from '../../src/lib/supabaseClient'
+import { type User, verifySession } from '../../src/lib/authClient'
 
 interface CampaignMember {
   id: string
@@ -97,7 +98,7 @@ export default function CampaignDetail() {
         }
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaign: Campaign }>
 
       if (data.success) {
         setCampaign(data.campaign)
@@ -121,7 +122,7 @@ export default function CampaignDetail() {
         }
       })
 
-      const data = await response.json()
+      const data = await response.json() as { nodes?: Node[]; error?: string }
 
       if (data.nodes) {
         setNodes(data.nodes)
@@ -206,7 +207,7 @@ export default function CampaignDetail() {
         body: JSON.stringify({ campaignId: campaign.id })
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResult<{ campaign: Partial<Campaign> }>
 
       if (data.success) {
         // Refresh campaign data

@@ -7,7 +7,7 @@ import { FeaturesSection } from '../src/sections/FeaturesSection'
 import { WorkflowSection } from '../src/sections/WorkflowSection'
 import { AdministrationSection } from '../src/sections/AdministrationSection'
 import { Footer } from '../src/components/Footer'
-import { signInWithGoogle, signOut, verifySession, type User, isSupabaseConfigured } from '../src/lib/supabaseClient'
+import { signInWithGoogle, signOut, verifySession, type User } from '../src/lib/authClient'
 
 export default function Home() {
   const router = useRouter()
@@ -95,7 +95,7 @@ export default function Home() {
           <HeroSection user={user} onSignIn={handleGoogleSignIn} />
           <FeaturesSection />
           <WorkflowSection />
-          <AdministrationSection user={user} isSupabaseConfigured={isSupabaseConfigured} />
+          <AdministrationSection user={user} />
         </main>
 
         <Footer />
