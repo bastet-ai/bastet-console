@@ -56,6 +56,20 @@ Exporter snapshots all public base tables in one statement. The importer checks
 snapshot hashes and schema, refuses a populated database, uses a parameterized
 atomic batch, and compares normalized full rows and foreign keys afterward.
 
+## Migration verification (2026-09-30)
+
+The original inactive Supabase project was recovered on its existing free plan.
+Its 10-table/102-column schema matched D1. The import and a second verification
+matched complete normalized row hashes and passed foreign-key checks. A fresh
+source snapshot showed no data or schema drift before cutover. Auth and object
+storage inventories were empty, so no R2 bucket or Supabase Auth migration was needed.
+The original data remains intact; a private, Git-ignored backup was also retained.
+
+Local validation covers D1 behavior, export/import integrity, and the built Worker
+HTTP routes. Authenticated preview reads returned the migrated user and campaigns,
+without exposing OAuth tokens. Public debug credential endpoints return 404.
+Google interactive sign-in remains a user/browser check, not a synthetic test claim.
+
 ## Rollback and limitations
 
 Keep the previous Vercel project and Supabase data intact. A routing rollback alone
