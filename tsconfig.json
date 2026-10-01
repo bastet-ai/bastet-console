@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "es6"],
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -23,6 +23,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "pages/**/*.ts", "pages/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "worker-configuration.d.ts", "pages/**/*.ts", "pages/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "tests", "**/*.test.*", "**/*.spec.*"]
 }

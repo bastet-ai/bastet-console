@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['@supabase/supabase-js'],
   async headers() {
     return [
       {
@@ -16,4 +15,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+export default nextConfig
