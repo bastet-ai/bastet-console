@@ -1,24 +1,23 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { after, before, beforeEach, test } from 'node:test'
-import { Miniflare } from 'miniflare'
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import jwt from 'jsonwebtoken'
 import { ConsoleDatabase } from '../src/server/database'
 import { authenticatedUser } from '../src/server/auth'
+import { migrationSchema, migrate, TABLES, JSON_COLUMNS } from '../scripts/import-d1.mjs'
 
 let runtime: Miniflare
 let binding: D1Database
 let db: ConsoleDatabase
 
 before(async () => {
-  runtime = new Miniflare({
+  runtime = new Miniflare(convertV4MiniflareOptions({
     modules: true,
     script: 'export default { fetch() { return new Response("ok") } }',
-    // Standalone Miniflare 4 ships this runtime; deployed Workers use the
-    // current compatibility date in wrangler.jsonc and receive separate smoke tests.
-    compatibilityDate: '2026-07-30',
+    compatibilityDate: '2026-09-30',
     d1Databases: ['DB']
-  })
+  }))
   binding = await runtime.getD1Database('DB')
   const schema = await readFile(new URL('../migrations/0001_console.sql', import.meta.url), 'utf8')
   for (const statement of schema.replace(/^--.*$/gm, '').split(';').map(sql => sql.trim()).filter(Boolean)) {
@@ -139,4 +138,24 @@ test('existing HS256 sessions still work and missing user IDs, other algorithms 
     assert.equal(verify(token), null)
     assert.equal(status, 401)
   }
+})
+
+test('safe importer performs a complete verified import through actual D1 batches', async () => {
+  await binding.exec('DELETE FROM users;')
+  const schema = migrationSchema(await readFile(new URL('../migrations/0001_console.sql', import.meta.url), 'utf8'))
+  const catalog = TABLES.flatMap(table => schema.columns[table].map(column => ({
+    schema_name: 'public', table_name: table, column_name: column.name, nullable: !column.notnull,
+    data_type: JSON_COLUMNS[table].includes(column.name) ? 'jsonb' : table === 'bastet_nodes' && column.name === 'websocket_connection' ? 'boolean' : 'text'
+  })))
+  const tables = Object.fromEntries(TABLES.map(table => [table, []]))
+  tables.users.push({ id: 'imported', email: 'imported@example.test', name: 'Imported', google_id: 'google-imported',
+    access_token: null, refresh_token: null, avatar_url: null, last_login: null, created_at: null, updated_at: null })
+  const snapshot = { schema: catalog, tables }
+  const query = async statements => binding.batch(statements.map(statement => {
+    const prepared = binding.prepare(statement.sql)
+    return statement.params ? prepared.bind(...statement.params) : prepared
+  }))
+  assert.equal((await migrate(snapshot, schema, query, { mode: 'import' })).verified, true)
+  assert.equal((await migrate(snapshot, schema, query, { mode: 'verify' })).verified, true)
+  await assert.rejects(migrate(snapshot, schema, query, { mode: 'import' }), /Target contains application data/)
 })
