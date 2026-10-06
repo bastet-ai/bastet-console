@@ -6,9 +6,11 @@ services:
     env_file: /home/pierce/gitops-secrets/console/api.env
     volumes:
       - /home/pierce/bastet-console-data:/data
+      - /home/pierce/gitops-secrets/console/postgres-ca.crt:/run/console-postgres/ca.crt:ro
     networks:
       buzz:
         aliases: [bastet-console-api]
+      console_db: {}
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -27,3 +29,6 @@ networks:
   buzz:
     external: true
     name: buzz-prod_buzz-net
+  console_db:
+    external: true
+    name: bastet-console-db

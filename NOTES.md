@@ -1,5 +1,123 @@
 # Console migration evidence
 
+## 2026-10-06: Review publication and live verification
+
+- Implementation commit `2250fb730af7514dcb7618363d7f36402867eba8` is published on
+  `codex/postgres-program-progress` in PR #5. Direct default-branch publication
+  was rejected by the approval policy; main is unchanged remotely. User approval
+  was requested for merging and the Cloudflare frontend release. No workaround
+  deployment was performed. The local new UI and shared Majin API are live.
+- Main-agent validation passed: 89/91 tests with two intentional opt-in PG skips,
+  TypeScript, production build, and the built Worker HTTP test. Independent live
+  PG tests and full restore checks are recorded below. The local rendered browser
+  shows actual agent heartbeats and completed tasks from the shared database.
+- Existing CI failures were verified on PR #5: validation reaches npm audit and
+  fails on 12 high transitive findings through braces, sharp and source-map-js;
+  Socket fails resolving `socketsecurity/cli-action`. No checks were disabled or
+  breaking forced dependency downgrades applied. These remain review items, not
+  passing security checks.
+- Private program policy, scope, results and credentials remain outside Git.
+  The installed upstream vinext skill and its lockfile are untracked local tooling;
+  the unrelated Supabase CLI metadata edit remains untouched.
+
+## 2026-10-06: Shared PostgreSQL and read-only program progress
+
+- Added a real Node/PostgreSQL adapter, explicit dialect fragments, pinned schema,
+  verified TLS/private-CA support, single-client transaction batches and null-safe
+  digest compare-and-set. SQL placeholder conversion preserves quotes/comments.
+- Fixed HackerOne single-program parsing for both documented wrapped and observed
+  bare resource responses. Malformed envelopes still fail closed. Fixtures remain
+  synthetic; account credentials remain on the workstation only.
+- Froze only the console SQLite writer, captured a consistent mode-600 snapshot,
+  and migrated all ten application tables into a fresh `console` schema. Complete
+  normalized row hashes and counts matched: 1 user, 2 campaigns, 1 membership,
+  1 activity, other tables empty. D1 migration metadata remains in source backups.
+  Original SQLite, D1 recovery resources, private PG dump and role/config backups
+  are retained. No existing public bounty table or Buzz data was migrated/changed.
+- Both local and hosted APIs now use the same canonical PostgreSQL database.
+  `console_api` has console CRUD, not ownership; `console_owner` is NOLOGIN.
+  The temporary migrator is NOLOGIN with password and owner membership removed.
+  Research agents never receive console/HackerOne credentials.
+- Enabled additive PostgreSQL TLS by config reload without restart. Verified the
+  private CA and rejected an untrusted CA. Added only a dedicated internal Docker
+  network/alias and CA mount; the published DB listener remains host-loopback.
+- Initial verified PG/progress API image: `bastet-console-api:pg-1767c9835b13`, bundle SHA-256
+  `84832439880f62f2acab7191cf29ca2e313055f50af8341dd5bca10280c71c0a`.
+  A rollout permission failure was reverted to the working PG image without data
+  rollback. Dockerfile now makes the non-secret bundle readable by its non-root
+  runtime; the final image passed actual isolated-container preflight and live
+  verification. Majin has no HackerOne environment credentials.
+- Follow-up API copy correction points setup errors to the local backend rather
+  than Majin. Current healthy image is `bastet-console-api:pg-f0dfc425387b`, bundle
+  SHA-256 `5a4cc6e8f4d527dc8bec2d799ef610fb260dc1838f58c6e0f79f1ae91e5b7cce`.
+  Reproducible packaging, isolated real-PG preflight and live authenticated
+  progress reads passed before/after activation. Auth and persistence were unchanged.
+- Added membership-gated `/api/campaigns/:id/progress` calling only the approved
+  `bastet.console_progress(text)` projection. UI shows desired versus observed
+  workers, recent tasks and reports every 30 seconds; Markdown/HTML is escaped
+  text. The console cannot use this read route to launch or resume agents.
+- Live read-only smoke checks agree through local API, hosted Worker and direct
+  service-authenticated Majin API: same campaign state, scope digest and run ID.
+  User-approved activation was made through the local campaign API and read back
+  through production. No orchestration rows were changed by console migration.
+- Local API (3000), debug UI (5173) and SSH DB tunnel (6544) are loopback-only,
+  restart-supervised persistent user units, enabled for future desktop sessions.
+  Workstation linger remains disabled; these are not pre-login system services.
+- Majin's lingering user manager now runs a nightly PostgreSQL/role backup timer
+  at 03:15 UTC plus up to 15 minutes jitter. Backup directory is 700, all dumps,
+  manifests and diagnostic files are 600; no automatic retention deletion. A fresh
+  dump restored fully in an offline temporary PG17 container: 10 console, 7 public
+  and 8 orchestration tables, 3 campaigns and 1 user. The test container was removed;
+  a protected off-host dump remains. Ongoing automatic off-host replication is not
+  configured and is not implied by this one verified copy.
+- Validation: full suite 91 tests (89 pass, 2 opt-in PG skips); real-PG suite 5/5;
+  TypeScript and production build pass. Build emitted only the known restricted
+  Wrangler log-path warning. Read-only live checks are reproducible with
+  `scripts/verify-live-console.mjs` and a protected API environment file.
+- No commit/push or Cloudflare frontend deployment was performed by this track.
+  Keep existing unrelated `supabase/.temp/cli-latest` out of the release.
+
+## 2026-10-06: Name-to-setup onboarding
+
+- Added owner-only name lookup against the official paginated HackerOne account
+  program catalog. Handle-shaped queries first fetch one program identity for
+  explicit confirmation. Only unique exact catalog names/handles resolve
+  automatically; partial/ambiguous matches require an explicit selection. The
+  catalog includes public programs and full policies, so direct handles/URLs
+  avoid an ordinary account exceeding the bounded list limit. Query and scope
+  retrieval share a 20-second deadline below the 30-second proxy limit.
+- Added deterministic, digest-bound setup proposals from eligible non-archived
+  structured assets. Android proposals cover SDK/ADB, a test device/emulator,
+  JADX, Apktool, Frida and a proxy with explicit prerequisites and fixed official
+  source links. Unknown/conflicting identifiers require manual review. Policy
+  prose cannot supply commands, installer URLs or additional tool IDs.
+- Setup proposals remain private metadata and are recomputed server-side when
+  campaigns are created/refreshed. Browser-supplied plans are ignored. The UI
+  can focus the proposal on a target type but does not save execution settings.
+  No downloads, installations, VM provisioning or testing are implemented here.
+- API key remains unconfigured; real account lookup and private import are
+  pending the user's credential hand-off. Tests use synthetic programs only.
+- Rechecked pre-release remote main `0a2e32a`, healthy Majin API `1be9c66`, and
+  Cloudflare settings (Majin origin, no Git build connection, logs/traces on).
+- Baseline CI run `37497463541` fails the dependency audit with 12 high findings
+  through braces, sharp and source-map-js. No dependencies or checks changed;
+  proposed forced fixes include breaking framework/runtime downgrades and were
+  not applied as part of this feature. Functional validation recorded below.
+- Upstream skill installation could not resolve npm in the sandbox. Read the
+  upstream vinext deployment guidance directly; kept the installed framework
+  versions and existing generated-config workflow.
+- Validation passed: 80 tests, 6 SQLite tests (1 intentional D1-only skip),
+  12 migration tests, TypeScript, production build, Wrangler dry-run, and the
+  built Worker HTTP test. Independent review identified a legacy malformed-
+  snapshot rendering edge case; fixed it with combined-view regression tests.
+- Local debug login still reaches Majin; live integration status correctly
+  reports unconfigured without exposing credentials. No live program data or
+  credentials were accessed by tests, and no production campaigns were created.
+- Publication pending: automatic approval review rejected the combined commit
+  and direct main-branch push because this turn did not explicitly authorize
+  shared-branch publication. No commit, push or deployment was performed for
+  this feature. Await user approval before publishing to main and releasing it.
+
 ## 2026-10-06: Private program onboarding
 
 - Replaced anonymous, truncated GraphQL import with the official authenticated

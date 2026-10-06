@@ -2,18 +2,20 @@
 
 ## Architecture
 
-Both UI instances use one API and database:
+Both UI instances share one PostgreSQL database through two Node APIs:
 
 - Public: `console.bastet.ai` serves vinext on Cloudflare; `/api/*` proxies to Majin.
-- Local: `npm run dev:debug` serves `http://127.0.0.1:5173` and proxies to Majin.
+- Local: `npm run dev:debug` serves `http://127.0.0.1:5173` and proxies to the
+  workstation API on `http://127.0.0.1:3000`.
 - API: `https://majin.x43.io/bastet-console/api/*`, routed by the existing Caddy.
-- Storage: `/home/pierce/bastet-console-data/console.sqlite` on Majin. SQLite WAL,
-  foreign keys, transactional batches, and parameterized SQL preserve D1 semantics.
-  This is separate from Buzz PostgreSQL and the scan-data PostgreSQL database.
+- Storage: the additive `console` schema in Majin's existing bounty PostgreSQL
+  database. Existing public bounty tables and Buzz's separate database are unchanged.
+  `console_api` has console CRUD, not schema ownership or research-agent credentials.
+  The optional read-only orchestration function is separately granted.
 
-The console is single-node, not highly available. Majin availability and backups
-are now operational dependencies. Do not place the SQLite file on network storage
-or scale this container across hosts without changing the storage architecture.
+The database is single-node, not highly available. Majin availability and backups
+remain dependencies. See [PostgreSQL operations](postgres-backend.md). The old
+SQLite file and D1 snapshot are frozen recovery sources, not alternative live stores.
 
 ## Authentication and local trust boundary
 
@@ -49,9 +51,34 @@ The production console never exposes `/api/auth/debug`.
 
 ## Deploy the API
 
-Bundle `scripts/serve-api.ts` with esbuild (Node 24, CJS, bundled dependencies).
-Build `deploy/Dockerfile.api` with only the resulting `api.cjs` in the context.
-Use an immutable release tag, recorded commit, and compiled bundle SHA-256.
+Run `npm ci` under Node 24, then `npm run build:api`. The helper prints a fresh
+ignored Docker context and content-derived `release` tag, records Git revision/
+dirty state and SHA-256 hashes, and copies only the API bundle, Dockerfile and
+strict allowlist into that context. Commit reviewed source before a production
+package; record any deliberately preserved unrelated dirty files separately.
+
+The locked esbuild build is exactly `bundle:true`, `platform:'node'`,
+`target:'node24'`, `format:'cjs'`, `external:['pg-native']`. `pg`'s normal JavaScript
+implementation is bundled; the unused optional native addon is not installed.
+Node builtins including `node:sqlite` remain runtime builtins. Dockerfile's
+portable `RUN chmod 0444 /app/api.cjs` ensures root-owned build artifacts remain
+readable by the non-root runtime, including with the existing legacy Docker builder.
+
+Use the exact context and release printed by the helper:
+
+```sh
+docker build -t bastet-console-api:RELEASE /absolute/printed/context
+```
+
+Do not use the repository or a backup directory as Docker context. Retain the
+`release.json` manifest, whose bundle hash must match `/app/api.cjs` in the image.
+Before changing the current release, launch an isolated no-published-port copy
+against the same PG/TLS configuration and verify health plus authenticated reads.
+Compose env files use quote parsing; raw `docker run --env-file` does not, so use
+a protected correctly parsed preflight env file or a Compose preflight. Never
+put credentials directly in shell arguments. Use an immutable release tag and
+preserve the prior PG image for rollback; never revert the live database.
+
 The Compose template runs as UID 1000, with no published ports, dropped Linux
 capabilities, a read-only root filesystem, resource limits and a health check.
 Caddy reaches the `bastet-console-api` alias on `buzz-prod_buzz-net`.
@@ -62,12 +89,21 @@ Runtime secrets live in `/home/pierce/gitops-secrets/console/api.env`, mode 600:
 Compose's release tag lives in the adjacent `.env` as `CONSOLE_RELEASE`.
 No secret files belong in Git or Docker image layers.
 
+Both Node APIs now explicitly set `CONSOLE_STORAGE=postgres`. Majin uses a
+verified-TLS `CONSOLE_DATABASE_URL` plus read-only `CONSOLE_POSTGRES_CA_FILE`.
+The dedicated internal Docker network is recorded in both console and bounty
+Compose templates; existing database port publication remains loopback-only.
+Nightly PostgreSQL backups and local user-unit operation are documented in the
+[current PG runbook](postgres-backend.md).
+
 ### Private HackerOne onboarding
 
 The optional integration uses the official Hacker API, not anonymous GraphQL.
 Configure `HACKERONE_API_USERNAME`, `HACKERONE_API_TOKEN`, and
-`HACKERONE_API_OWNER_ID` in Majin's private `api.env`, then recreate only the
-console API service. The owner ID is an existing **console user ID**, not the
+`HACKERONE_API_OWNER_ID` only in the workstation's protected `.env.postgres.local`.
+Do not copy these credentials to Majin, Cloudflare or research agents. The hosted
+API can read saved snapshots but its HackerOne setup gate remains unconfigured.
+The owner ID is an existing **console user ID**, not the
 HackerOne username. Only that signed-in user may use this account credential.
 Do not put these values in Cloudflare, Vite variables, browser storage, Git,
 images, logs, or campaign metadata. A local ignored `.env.hackerone.local` can
@@ -95,7 +131,36 @@ and a digest excluding fetch time. Pagination is bounded to 100 pages per
 collection and 4 MiB total upstream data. Any incomplete/failed fetch leaves
 existing data unchanged. Large snapshots beyond these limits require a
 separate reviewed import, not silent truncation. Large-snapshot D1 recovery
-compatibility is not established; production uses Majin SQLite.
+compatibility is not established; production uses shared PostgreSQL.
+
+### Name-to-setup onboarding
+
+The import field accepts a program name, handle, or HackerOne URL. Name lookup
+uses the configured owner's authenticated `GET /v1/hackers/programs` catalog,
+not public search. A handle-shaped name first tries the documented single-program
+resource and offers its identity for explicit confirmation without reading the
+catalog. A 404 falls back to catalog lookup; other errors fail closed. Only a
+unique exact catalog name/handle resolves automatically; partial and ambiguous
+matches require a selection. The entire bounded catalog must be read before
+resolving a catalog match, so truncation cannot silently choose the wrong program.
+HackerOne includes public programs and full policies in that catalog, which may
+exceed the import limits. A direct program URL bypasses catalog lookup.
+
+The verified scope also generates a setup proposal bound to its SHA-256 digest.
+Eligible, non-archived assets are grouped into Android, iOS, web, and manual
+review. Android proposals include Android SDK/ADB, an owned device or emulator,
+JADX, Apktool, Frida and an intercepting proxy. The proposal records reasons,
+official tool references, and prerequisites such as an approved app source,
+test accounts, runtime/ABI compatibility, and any device modifications.
+
+This is a fixed, versioned planning catalog, not an LLM interpreting policy as
+commands. Program prose cannot add tools, execute commands, or authorize a
+download. Selecting a target group changes the review view only. The full plan
+is saved with new/refreshed imports; the UI derives its current proposal from
+the verified snapshot, including for earlier imports. No tool installer,
+environment inspection, VM provisioner or execution runner is invoked. APK
+acquisition, installation, license acceptance, device changes, paid resources,
+policy/announcement conflicts and testing all need separate review/approval.
 
 Refresh is preview then explicit acceptance. The server verifies both the
 new digest and the previous saved digest; an atomic database condition rejects
@@ -112,7 +177,10 @@ Cloudflare needs `CONSOLE_SERVICE_KEY` as a secret and `CONSOLE_API_ORIGIN` as
 fallback on a Majin error. Do not enable it after Majin accepts writes without
 first reconciling the databases. Keep old D1 resources for recovery, not dual writes.
 
-## Migration and recovery
+## Historical D1-to-SQLite migration and recovery
+
+The following records the earlier migration. PostgreSQL is now authoritative;
+do not follow these steps as a current rollback without reconciling new PG writes.
 
 1. Validate existing OAuth/JWT credentials privately. Check deployment settings
    for an active Git build before any manual Cloudflare deployment.

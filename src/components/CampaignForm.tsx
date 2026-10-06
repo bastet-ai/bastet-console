@@ -2,6 +2,7 @@ import type { ApiResult } from '../lib/apiResult'
 import React, { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import HackerOneScopeSnapshot, { type HackerOneMetadata } from './HackerOneScopeSnapshot'
+import ProgramSetupPlan from './ProgramSetupPlan'
 
 interface CampaignFormProps {
   onSubmit: (campaignData: CampaignSubmission) => Promise<void>
@@ -29,17 +30,20 @@ interface CampaignData {
 }
 
 interface IntegrationStatus { configured: boolean; authorized: boolean }
+interface ProgramCandidate { handle: string; name: string; url: string }
+type ImportResult = { campaign: CampaignData } | { candidates: ProgramCandidate[] }
 
 type CreationMode = 'manual' | 'hackerone'
 
 export default function CampaignForm({ onSubmit, onCancel, loading = false, submitError }: CampaignFormProps) {
-  const [mode, setMode] = useState<CreationMode>('manual')
+  const [mode, setMode] = useState<CreationMode>('hackerone')
   const [hackeroneHandle, setHackeroneHandle] = useState('')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null)
   const [checkingIntegration, setCheckingIntegration] = useState(false)
   const [reviewed, setReviewed] = useState(false)
+  const [programCandidates, setProgramCandidates] = useState<ProgramCandidate[] | null>(null)
   
   const [formData, setFormData] = useState<CampaignData>({
     name: '',
@@ -77,14 +81,15 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
     return () => { current = false }
   }, [mode])
 
-  const handleImportFromHackerOne = async () => {
-    if (!hackeroneHandle.trim()) {
-      setImportError('Please enter a HackerOne program handle or URL')
+  const handleImportFromHackerOne = async (selectedHandle?: string) => {
+    if (!selectedHandle && !hackeroneHandle.trim()) {
+      setImportError('Please enter a program name, handle, or HackerOne URL')
       return
     }
 
     setImporting(true)
     setImportError(null)
+    if (!selectedHandle) setProgramCandidates(null)
 
     try {
       const token = localStorage.getItem('auth_token')
@@ -95,12 +100,16 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ programHandle: hackeroneHandle.trim() })
+        body: JSON.stringify(selectedHandle ? { programHandle: selectedHandle } : { programQuery: hackeroneHandle.trim() })
       })
 
-      const data = await response.json() as ApiResult<{ campaign: CampaignData }>
+      const data = await response.json() as ApiResult<ImportResult>
 
       if (response.ok && data.success) {
+        if ('candidates' in data) {
+          setProgramCandidates(data.candidates)
+          return
+        }
         // Populate form with imported data including HackerOne metadata
         setFormData({
           name: data.campaign.name,
@@ -113,6 +122,7 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
           hackerone_metadata: data.campaign.hackerone_metadata
         })
         setReviewed(false)
+        setProgramCandidates(null)
         setErrors({})
         setMode('manual') // Switch to manual mode with pre-filled data
       } else {
@@ -200,7 +210,7 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
           <span className="mode-icon">🔗</span>
           <div className="mode-text">
             <strong>Import from HackerOne</strong>
-            <small>Private or public programs</small>
+            <small>Find a program by name</small>
           </div>
         </button>
       </div>
@@ -210,15 +220,15 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
         <div className="hackerone-import-section">
           <div className="import-header">
             <h3>Import from HackerOne</h3>
-            <p>Paste a program URL or handle. Majin retrieves the full policy and structured scope using its server-side HackerOne account, including private programs that account can access.</p>
+            <p>Enter a program name, handle, or URL. The local console backend looks up programs accessible to your HackerOne account, including private invitations, then prepares the full scope and a proposed tool setup for your review.</p>
           </div>
           <div className="import-info" role="status">
-            {checkingIntegration ? <p>Checking the server-side HackerOne connection...</p> : integrationStatus?.configured && integrationStatus.authorized ? <p>Server-side HackerOne connection ready. No API key is sent to this browser.</p> : integrationStatus && !integrationStatus.configured ? <p>HackerOne is not configured. Ask the console administrator to provision the API username, token, and authorized owner on Majin. Do not paste credentials into this form.</p> : integrationStatus && !integrationStatus.authorized ? <p>This console account is not authorized to use the server-side HackerOne integration. Sign in as the configured owner or ask the administrator to review access.</p> : <p>Connection status unavailable. Switch away and back to retry, or sign in again.</p>}
+            {checkingIntegration ? <p>Checking the server-side HackerOne connection...</p> : integrationStatus?.configured && integrationStatus.authorized ? <p>Server-side HackerOne connection ready. No API key is sent to this browser.</p> : integrationStatus && !integrationStatus.configured ? <p>HackerOne is not configured on this backend. Provision credentials only on the local console backend and use it to import programs; saved scope is also visible here. Do not paste credentials into this form.</p> : integrationStatus && !integrationStatus.authorized ? <p>This console account is not authorized to use the server-side HackerOne integration. Sign in as the configured owner or ask the administrator to review access.</p> : <p>Connection status unavailable. Switch away and back to retry, or sign in again.</p>}
           </div>
           
           <div className="import-input-group">
             <label htmlFor="hackerone-handle" className="form-label">
-              HackerOne program URL or handle
+              Program name, handle, or HackerOne URL
             </label>
             <div className="import-input-wrapper">
               <input
@@ -228,18 +238,19 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
                 onChange={(e) => {
                   setHackeroneHandle(e.target.value)
                   setImportError(null)
+                  setProgramCandidates(null)
                 }}
                 className="form-input"
-                placeholder="https://hackerone.com/program-handle"
+                placeholder="Program name or https://hackerone.com/program-handle"
                 disabled={importing || loading}
               />
               <button
                 type="button"
-                onClick={handleImportFromHackerOne}
+                onClick={() => handleImportFromHackerOne()}
                 className={clsx('import-button', { 'form-button-loading': importing })}
                 disabled={loading || importing || checkingIntegration || !integrationStatus?.configured || !integrationStatus.authorized || !hackeroneHandle.trim()}
               >
-                {importing ? 'Importing...' : 'Import'}
+                {importing ? 'Looking up...' : 'Find Program'}
               </button>
             </div>
             {importError && (
@@ -247,8 +258,23 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
             )}
             <div className="form-help">
               Private invitations are account-specific. A browser invitation alone does not grant the server account access.
+              {' '}If name lookup exceeds the account catalog limits, paste the exact program URL.
             </div>
           </div>
+
+          {programCandidates && (
+            <section className="hackerone-program-candidates" aria-label="Choose a HackerOne program">
+              <h4>{programCandidates.length ? 'Choose the intended program' : 'No accessible programs matched'}</h4>
+              <p className="form-help">{programCandidates.length ? 'These matches need your choice. Confirm the exact program below before importing its scope.' : 'Try the exact HackerOne handle or program URL. The server account must have access to a private program.'}</p>
+              {programCandidates.map(candidate => (
+                <button type="button" key={candidate.handle} className="hackerone-program-candidate" disabled={loading || importing} onClick={() => handleImportFromHackerOne(candidate.handle)}>
+                  <strong>{candidate.name}</strong>
+                  <span>hackerone.com/{candidate.handle}</span>
+                  <span>Review this program →</span>
+                </button>
+              ))}
+            </section>
+          )}
 
           <div className="import-info">
             <p><strong>What will be imported:</strong></p>
@@ -258,7 +284,11 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
               <li>Full API policy, submission and bounty eligibility, and severity limits</li>
               <li>A timestamped SHA-256 snapshot, verified again before saving</li>
               <li>A private, paused campaign. Importing does not start any testing.</li>
+              <li>A proposed setup grouped by target type, including prerequisites and tools</li>
             </ul>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="form-button form-button-secondary" onClick={onCancel} disabled={loading}>Cancel</button>
           </div>
         </div>
       )}
@@ -356,6 +386,7 @@ export default function CampaignForm({ onSubmit, onCancel, loading = false, subm
 
           {imported && (
             <div className="form-group">
+              {snapshot && <ProgramSetupPlan key={snapshot.sha256} snapshot={snapshot} />}
               {snapshot && <HackerOneScopeSnapshot snapshot={snapshot} />}
               <p className="form-help">Also manually review the program&apos;s <a href={`https://hackerone.com/${encodeURIComponent(formData.hackerone_handle!)}/invite_only`} target="_blank" rel="noopener noreferrer">private-program rules</a>, <a href={`https://hackerone.com/${encodeURIComponent(formData.hackerone_handle!)}/updates`} target="_blank" rel="noopener noreferrer">updates and announcements</a>, and <a href="https://docs.hackerone.com/en/articles/8494488-core-ineligible-findings" target="_blank" rel="noopener noreferrer">core ineligible findings</a>. The API snapshot does not verify your review of these pages.</p>
               <label className="hackerone-review-check">

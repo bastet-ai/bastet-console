@@ -1,6 +1,7 @@
 // Persistence is server-only. Every tenant query takes the authenticated user ID.
 // SQL parameters hold values; dynamic column names come only from fixed lists.
 export type Role = 'owner' | 'manager' | 'collaborator' | 'watcher'
+import type { ProgramProgress, ProgramProgressResponse } from '../lib/programProgress'
 export type SqlValue = string | number | null
 export interface SqlStatement {
   bind(...values: SqlValue[]): SqlStatement
@@ -9,6 +10,7 @@ export interface SqlStatement {
   run(): Promise<{ meta: { changes: number } }>
 }
 export interface SqlDatabase {
+  readonly dialect?: 'postgres'
   prepare(sql: string): SqlStatement
   batch(statements: SqlStatement[]): Promise<{ meta: { changes: number } }[]>
 }
@@ -57,6 +59,10 @@ const memberUser = (row: Row) => {
 
 export class ConsoleDatabase {
   constructor(private readonly db: SqlDatabase) {}
+
+  private jsonObject(argumentsSql: string) {
+    return `${this.db.dialect === 'postgres' ? 'jsonb_build_object' : 'json_object'}(${argumentsSql})`
+  }
 
   async userById(userId: string): Promise<PublicUser | null> {
     return this.db.prepare(`SELECT ${publicUserColumns} FROM users WHERE id = ?`).bind(userId).first<PublicUser>()
@@ -129,6 +135,20 @@ export class ConsoleDatabase {
     return row ? decodeCampaign(row) : null
   }
 
+  async campaignProgress(userId: string, campaignId: string): Promise<ProgramProgressResponse | null> {
+    // Membership is mandatory even for configured/no-run status. The definer
+    // function exposes an allowlisted projection, not direct agent-table access.
+    if (!await this.campaignRole(userId, campaignId)) return null
+    if (this.db.dialect !== 'postgres') return { configured: false, progress: null }
+    const available = await this.db.prepare(`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'bastet' AND p.proname = 'console_progress' AND p.proargtypes = '25'::oidvector
+    ) AS available`).first<{ available: number }>()
+    if (!available?.available) return { configured: false, progress: null }
+    const row = await this.db.prepare('SELECT bastet.console_progress(?) AS progress').bind(campaignId).first<Row>()
+    return { configured: true, progress: row ? decodeJson(row.progress) as ProgramProgress | null : null }
+  }
+
   async createCampaign(userId: string, input: CampaignInput) {
     const id = crypto.randomUUID()
     const timestamp = now()
@@ -144,7 +164,7 @@ export class ConsoleDatabase {
       this.db.prepare('INSERT INTO campaign_activities (id, campaign_id, user_id, activity_type, activity_data, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         .bind(crypto.randomUUID(), id, userId, 'campaign_created', json({ campaign_name: input.name, campaign_description: input.description ?? null }), timestamp),
       this.db.prepare(`INSERT INTO campaign_activities (id, campaign_id, user_id, activity_type, activity_data, created_at)
-        SELECT ?, ?, id, 'member_added', json_object('member_name', name, 'member_role', 'owner'), ? FROM users WHERE id = ?`)
+        SELECT ?, ?, id, 'member_added', ${this.jsonObject("'member_name', name, 'member_role', 'owner'")}, ? FROM users WHERE id = ?`)
         .bind(crypto.randomUUID(), id, timestamp, userId)
     ])
     return this.campaign(userId, id)
@@ -155,7 +175,10 @@ export class ConsoleDatabase {
     const changed = fields.filter(field => input[field] !== undefined)
     const values = changed.map(field => field === 'hackerone_metadata' ? json(input[field]) : input[field] as SqlValue)
     const digestGuard = expectedHackerOneDigest !== undefined
-      ? " AND json_extract(hackerone_metadata, '$.scope_snapshot.sha256') IS ?" : ''
+      ? this.db.dialect === 'postgres'
+        ? " AND (hackerone_metadata #>> '{scope_snapshot,sha256}') IS NOT DISTINCT FROM ?"
+        : " AND json_extract(hackerone_metadata, '$.scope_snapshot.sha256') IS ?"
+      : ''
     const row = await this.db.prepare(`UPDATE campaigns SET ${changed.map(field => `${field} = ?, `).join('')}updated_at = ?
       WHERE id = ? AND (owner_id = ? OR EXISTS (SELECT 1 FROM campaign_members m
         WHERE m.campaign_id = campaigns.id AND m.user_id = ? AND m.role IN ('owner', 'manager')))${digestGuard} RETURNING *`)
@@ -188,7 +211,7 @@ export class ConsoleDatabase {
             AND (actor.role = 'owner' OR (actor.role = 'manager' AND ? != 'owner'))))`)
         .bind(id, targetUserId, role, campaignId, userId, userId, role),
       this.db.prepare(`INSERT INTO campaign_activities (id, campaign_id, user_id, activity_type, activity_data)
-        SELECT ?, m.campaign_id, m.user_id, 'member_added', json_object('member_name', u.name, 'member_role', m.role)
+        SELECT ?, m.campaign_id, m.user_id, 'member_added', ${this.jsonObject("'member_name', u.name, 'member_role', m.role")}
         FROM campaign_members m JOIN users u ON u.id = m.user_id WHERE m.id = ?`)
         .bind(crypto.randomUUID(), id)
     ])
@@ -214,7 +237,7 @@ export class ConsoleDatabase {
     const values = [memberId, campaignId, userId, userId]
     const result = await this.db.batch([
       this.db.prepare(`INSERT INTO campaign_activities (id, campaign_id, user_id, activity_type, activity_data)
-        SELECT ?, m.campaign_id, m.user_id, 'member_removed', json_object('member_name', u.name, 'member_role', m.role)
+        SELECT ?, m.campaign_id, m.user_id, 'member_removed', ${this.jsonObject("'member_name', u.name, 'member_role', m.role")}
         FROM campaign_members m JOIN users u ON u.id = m.user_id JOIN campaigns c ON c.id = m.campaign_id WHERE ${permitted}`)
         .bind(crypto.randomUUID(), ...values),
       this.db.prepare(`DELETE FROM campaign_members WHERE id IN
@@ -228,7 +251,7 @@ export class ConsoleDatabase {
       u.name AS user_name, u.email AS user_email, u.avatar_url AS user_avatar
       FROM campaign_activities a JOIN campaigns c ON c.id = a.campaign_id LEFT JOIN users u ON u.id = a.user_id
       WHERE (c.owner_id = ? OR EXISTS (SELECT 1 FROM campaign_members m WHERE m.campaign_id = c.id AND m.user_id = ?))
-        AND (? IS NULL OR c.id = ?) ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`)
+        AND (CAST(? AS TEXT) IS NULL OR c.id = ?) ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`)
       .bind(userId, userId, campaignId, campaignId, limit, offset).all<Row>()
     return result.results.map(row => ({ ...row, activity_data: decodeJson(row.activity_data) }))
   }

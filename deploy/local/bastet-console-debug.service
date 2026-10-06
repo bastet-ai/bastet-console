@@ -1,0 +1,15 @@
+[Unit]
+Description=Bastet loopback-only local debug console
+Wants=bastet-console-api.service
+After=bastet-console-api.service
+
+[Service]
+WorkingDirectory=/home/pierce/projects/bastet-console
+ExecStart=/home/pierce/.nvm/versions/node/v24.19.0/bin/node node_modules/vite/bin/vite.js dev --mode debug --host 127.0.0.1 --port 5173 --strictPort
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

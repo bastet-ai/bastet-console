@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { authenticatedUser, apiFailure } from '../../../src/server/auth'
-import { assertHackerOneAccess, fetchHackerOneProgram, HackerOneError, hackerOneScope, hackerOneMetadata, hackerOneStatus, normalizeHackerOneHandle } from '../../../src/server/hackerone'
+import { assertHackerOneAccess, fetchHackerOneProgram, HackerOneError, hackerOneScope, hackerOneMetadata, hackerOneStatus, normalizeHackerOneHandle, resolveHackerOneProgram } from '../../../src/server/hackerone'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader('Cache-Control', 'no-store')
@@ -11,8 +11,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'GET') return res.json({ success: true, ...hackerOneStatus(userId) })
     // The account credential belongs to one console user, not every logged-in user.
     assertHackerOneAccess(userId)
-    const programHandle = normalizeHackerOneHandle(req.body?.programHandle)
-    const team = await fetchHackerOneProgram(programHandle)
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) ||
+      Object.hasOwn(req.body, 'programHandle') === Object.hasOwn(req.body, 'programQuery')) {
+      return res.status(400).json({ error: 'Provide one program query or an explicitly selected program handle.' })
+    }
+    // Lookup and full import share one deadline below the proxy timeout. Each
+    // phase retains its own bounded response-size budget, with no shared cache.
+    const signal = AbortSignal.timeout(20000)
+    let programHandle: string
+    if (Object.hasOwn(req.body, 'programQuery')) {
+      const resolved = await resolveHackerOneProgram(req.body.programQuery, signal)
+      if (resolved.candidates) return res.json({ success: true, candidates: resolved.candidates })
+      programHandle = resolved.programHandle
+    } else {
+      programHandle = normalizeHackerOneHandle(req.body.programHandle)
+    }
+    const team = await fetchHackerOneProgram(programHandle, signal)
     if (!team) return res.status(404).json({ error: 'Program not found or not accessible to the configured HackerOne account' })
     return res.json({
       success: true,
