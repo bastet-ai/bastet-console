@@ -18,6 +18,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:sqlite
       - run: npm run test:migration
       - run: npm run build
         env:

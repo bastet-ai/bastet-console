@@ -5,9 +5,10 @@ type NavbarProps = {
   user: User | null;
   onSignOut: () => void;
   onSignIn: () => void;
+  signInLabel?: string;
 };
 
-export default function Navbar({ user, onSignOut, onSignIn }: NavbarProps) {
+export default function Navbar({ user, onSignOut, onSignIn, signInLabel = 'Sign in with Google' }: NavbarProps) {
   return (
     <header className="navbar">
       <div className="navbar-inner">
@@ -56,7 +57,7 @@ export default function Navbar({ user, onSignOut, onSignIn }: NavbarProps) {
             className={clsx('cta-button', 'navbar-cta')}
             onClick={onSignIn}
           >
-            Sign in with Google
+            {signInLabel}
           </button>
         )}
       </div>

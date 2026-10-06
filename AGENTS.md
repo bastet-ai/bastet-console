@@ -1,5 +1,16 @@
 # Agent Instructions
 
+## Current architecture (October 2026)
+
+The historical sections below predate two migrations. Follow `README.md` and
+`docs/majin-backend.md` for the current architecture: vinext/React 19 on Cloudflare,
+Node 24 API plus SQLite on Majin, and loopback-only local debug login. Never widen
+debug access or add browser-visible service secrets. Do not modify Buzz or the
+scan-data database as part of console work. Preserve D1 and verified exports for
+recovery; never switch back to stale D1 after Majin has accepted new writes.
+Stage only task-related changes, not unrelated working-tree edits. Record release
+and live verification evidence in `NOTES.md`; validate before commit/push/deploy.
+
 ## Important Reminder for AI Agents
 
 **ALWAYS commit and push your changes after every update!**

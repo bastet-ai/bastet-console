@@ -23,6 +23,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "worker-configuration.d.ts", "pages/**/*.ts", "pages/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"],
+  "include": ["next-env.d.ts", "worker-configuration.d.ts", "pages/**/*.ts", "pages/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "worker/**/*.ts", "scripts/local-debug.ts", "scripts/serve-api.ts", "vite.config.ts"],
   "exclude": ["node_modules", "tests", "**/*.test.*", "**/*.spec.*"]
 }

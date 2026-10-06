@@ -4,10 +4,11 @@ interface HeroSectionProps {
   user: any;
   onSignIn: () => void;
   callout?: ReactNode;
+  signInLabel?: string;
 }
 
-export function HeroSection({ user, onSignIn, callout }: HeroSectionProps) {
-  const ctaLabel = user ? 'Open the console' : 'Sign in with Google';
+export function HeroSection({ user, onSignIn, callout, signInLabel = 'Sign in with Google' }: HeroSectionProps) {
+  const ctaLabel = user ? 'Open the console' : signInLabel;
   const subtitle = user
     ? 'Welcome back! Access the Bastet node console to orchestrate fleet-wide automations and security scans.'
     : 'Authenticate with Google to manage Bastet scanning nodes, automate deployments, and monitor telemetry.';

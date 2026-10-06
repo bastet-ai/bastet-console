@@ -7,12 +7,14 @@ import { FeaturesSection } from '../src/sections/FeaturesSection'
 import { WorkflowSection } from '../src/sections/WorkflowSection'
 import { AdministrationSection } from '../src/sections/AdministrationSection'
 import { Footer } from '../src/components/Footer'
-import { signInWithGoogle, signOut, verifySession, type User } from '../src/lib/authClient'
+import { signInWithGoogle, signOut, verifySession, isLocalDebug, type User } from '../src/lib/authClient'
 
 export default function Home() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [debug, setDebug] = useState(false)
+  useEffect(() => { void isLocalDebug().then(setDebug) }, [])
 
   useEffect(() => {
     // Check for existing session
@@ -86,13 +88,14 @@ export default function Home() {
 
       <div className="min-h-screen bg-gray-50">
         <Navbar
+          signInLabel={debug ? 'Sign in as local admin' : undefined}
           user={user}
           onSignIn={handleGoogleSignIn}
           onSignOut={handleSignOut}
         />
 
         <main>
-          <HeroSection user={user} onSignIn={handleGoogleSignIn} />
+          <HeroSection user={user} onSignIn={handleGoogleSignIn} signInLabel={debug ? 'Sign in as local admin' : undefined} />
           <FeaturesSection />
           <WorkflowSection />
           <AdministrationSection user={user} />

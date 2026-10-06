@@ -5,13 +5,22 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import jwt from 'jsonwebtoken'
 import { ConsoleDatabase } from '../src/server/database'
 import { authenticatedUser } from '../src/server/auth'
+import { SQLiteDatabase } from '../src/server/sqlite'
 import { migrationSchema, migrate, TABLES, JSON_COLUMNS } from '../scripts/import-d1.mjs'
 
 let runtime: Miniflare
 let binding: D1Database
 let db: ConsoleDatabase
+let sqlite: SQLiteDatabase | undefined
 
 before(async () => {
+  if (process.env.CONSOLE_TEST_SQLITE === '1') {
+    sqlite = new SQLiteDatabase(':memory:')
+    sqlite.connection.exec(await readFile(new URL('../migrations/0001_console.sql', import.meta.url), 'utf8'))
+    binding = Object.assign(sqlite, { exec: async (sql: string) => sqlite!.connection.exec(sql) }) as unknown as D1Database
+    db = new ConsoleDatabase(sqlite)
+    return
+  }
   runtime = new Miniflare(convertV4MiniflareOptions({
     modules: true,
     script: 'export default { fetch() { return new Response("ok") } }',
@@ -26,7 +35,7 @@ before(async () => {
   db = new ConsoleDatabase(binding)
 })
 
-after(async () => { await runtime?.dispose() })
+after(async () => { await runtime?.dispose(); sqlite?.close() })
 
 beforeEach(async () => {
   await binding.exec('DELETE FROM users;')
@@ -140,7 +149,7 @@ test('existing HS256 sessions still work and missing user IDs, other algorithms 
   }
 })
 
-test('safe importer performs a complete verified import through actual D1 batches', async () => {
+test('safe importer performs a complete verified import through actual D1 batches', { skip: process.env.CONSOLE_TEST_SQLITE === '1' }, async () => {
   await binding.exec('DELETE FROM users;')
   const schema = migrationSchema(await readFile(new URL('../migrations/0001_console.sql', import.meta.url), 'utf8'))
   const catalog = TABLES.flatMap(table => schema.columns[table].map(column => ({

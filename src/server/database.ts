@@ -1,7 +1,17 @@
 // Persistence is server-only. Every tenant query takes the authenticated user ID.
 // SQL parameters hold values; dynamic column names come only from fixed lists.
 export type Role = 'owner' | 'manager' | 'collaborator' | 'watcher'
-type SqlValue = string | number | null
+export type SqlValue = string | number | null
+export interface SqlStatement {
+  bind(...values: SqlValue[]): SqlStatement
+  first<T = Record<string, unknown>>(): Promise<T | null>
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>
+  run(): Promise<{ meta: { changes: number } }>
+}
+export interface SqlDatabase {
+  prepare(sql: string): SqlStatement
+  batch(statements: SqlStatement[]): Promise<{ meta: { changes: number } }[]>
+}
 type Row = Record<string, SqlValue>
 
 export interface PublicUser {
@@ -46,7 +56,7 @@ const memberUser = (row: Row) => {
 }
 
 export class ConsoleDatabase {
-  constructor(private readonly db: D1Database) {}
+  constructor(private readonly db: SqlDatabase) {}
 
   async userById(userId: string): Promise<PublicUser | null> {
     return this.db.prepare(`SELECT ${publicUserColumns} FROM users WHERE id = ?`).bind(userId).first<PublicUser>()

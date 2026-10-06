@@ -4,19 +4,19 @@
   "account_id": "b6d1478423f0bb0c0477df387305e46b",
   "compatibility_date": "2026-09-30",
   "workers_dev": true,
-  "preview_urls": true,
+  "preview_urls": false,
   "routes": [{ "pattern": "console.bastet.ai", "custom_domain": true, "zone_id": "048469a55c190930b5bf4105307aad2b" }],
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "main": "vinext/server/fetch-handler",
+  "main": "worker/index.ts",
   "d1_databases": [{
     "binding": "DB",
     "database_name": "bastet-console",
     "database_id": "9dffd0e0-f0fb-4a9d-abe3-ff05ceff59ba",
     "migrations_dir": "migrations"
   }],
-  "vars": { "NEXTAUTH_URL": "https://console.bastet.ai" },
+  "vars": { "NEXTAUTH_URL": "https://console.bastet.ai", "CONSOLE_STORAGE": "d1" },
   "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": true }, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },
   "assets": {
     "directory": "dist/client",

@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "vite dev",
+    "dev:debug": "vite dev --mode debug --host 127.0.0.1 --port 5173 --strictPort",
+    "start:api": "node --import tsx scripts/serve-api.ts",
+    "test:sqlite": "CONSOLE_TEST_SQLITE=1 node --import tsx --test tests/d1.test.ts",
     "build": "vite build",
     "start": "wrangler dev --config dist/bastet_console/wrangler.json",
     "deploy": "wrangler deploy --config dist/bastet_console/wrangler.json",

@@ -1,0 +1,29 @@
+name: bastet-console
+services:
+  api:
+    image: bastet-console-api:${CONSOLE_RELEASE:?set CONSOLE_RELEASE}
+    restart: unless-stopped
+    env_file: /home/pierce/gitops-secrets/console/api.env
+    volumes:
+      - /home/pierce/bastet-console-data:/data
+    networks:
+      buzz:
+        aliases: [bastet-console-api]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health',{headers:{'x-console-service-key':process.env.CONSOLE_SERVICE_KEY}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  buzz:
+    external: true
+    name: buzz-prod_buzz-net

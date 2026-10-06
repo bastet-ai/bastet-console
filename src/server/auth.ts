@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
+import { requestContext } from './runtime'
 
 export function authenticatedUser(req: NextApiRequest, res: NextApiResponse): string | null {
+  const debugUserId = requestContext.getStore()?.debugUserId
+  if (debugUserId) return debugUserId
   const header = req.headers.authorization
   if (!header?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'No authorization token provided' })
