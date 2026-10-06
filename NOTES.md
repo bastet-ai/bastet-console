@@ -1,5 +1,25 @@
 # Console migration evidence
 
+## 2026-10-06: Review publication and live verification
+
+- Implementation commit `2250fb730af7514dcb7618363d7f36402867eba8` is published on
+  `codex/postgres-program-progress` in PR #5. Direct default-branch publication
+  was rejected by the approval policy; main is unchanged remotely. User approval
+  was requested for merging and the Cloudflare frontend release. No workaround
+  deployment was performed. The local new UI and shared Majin API are live.
+- Main-agent validation passed: 89/91 tests with two intentional opt-in PG skips,
+  TypeScript, production build, and the built Worker HTTP test. Independent live
+  PG tests and full restore checks are recorded below. The local rendered browser
+  shows actual agent heartbeats and completed tasks from the shared database.
+- Existing CI failures were verified on PR #5: validation reaches npm audit and
+  fails on 12 high transitive findings through braces, sharp and source-map-js;
+  Socket fails resolving `socketsecurity/cli-action`. No checks were disabled or
+  breaking forced dependency downgrades applied. These remain review items, not
+  passing security checks.
+- Private program policy, scope, results and credentials remain outside Git.
+  The installed upstream vinext skill and its lockfile are untracked local tooling;
+  the unrelated Supabase CLI metadata edit remains untouched.
+
 ## 2026-10-06: Shared PostgreSQL and read-only program progress
 
 - Added a real Node/PostgreSQL adapter, explicit dialect fragments, pinned schema,
