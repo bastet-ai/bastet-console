@@ -16,6 +16,8 @@ import nodes from '../../pages/api/nodes/index'
 import node from '../../pages/api/nodes/[id]'
 import hackerone from '../../pages/api/integrations/hackerone'
 import websocket from '../../pages/api/ws/nodes'
+import { dirname, join } from 'node:path'
+import { snapshotDatabase } from './backup'
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => unknown
 const routes: [RegExp, Handler][] = [
@@ -69,16 +71,30 @@ export function createApiServer(options: { database: ConsoleDatabase; serviceKey
 }
 
 export function startApiServer() {
+  process.umask(0o077)
   for (const name of ['CONSOLE_DB_PATH', 'CONSOLE_SERVICE_KEY', 'CONSOLE_DEBUG_KEY', 'CONSOLE_DEBUG_USER_ID', 'JWT_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'NEXTAUTH_URL']) {
     if (!process.env[name]) throw new Error(`Missing ${name}`)
   }
   const storage = new SQLiteDatabase(process.env.CONSOLE_DB_PATH!)
+  let backingUp = false
+  const snapshot = async () => {
+    if (backingUp) return
+    backingUp = true
+    try {
+      await snapshotDatabase(storage.connection, join(dirname(process.env.CONSOLE_DB_PATH!), 'backups'))
+      console.log(JSON.stringify({ event: 'sqlite_backup_verified' }))
+    } catch { console.error(JSON.stringify({ event: 'sqlite_backup_failed' })) }
+    finally { backingUp = false }
+  }
+  void snapshot()
+  const backupTimer = setInterval(() => { void snapshot() }, 24 * 60 * 60 * 1000)
+  backupTimer.unref()
   const database = new ConsoleDatabase(storage)
   const server = createApiServer({ database, serviceKey: process.env.CONSOLE_SERVICE_KEY!, debugKey: process.env.CONSOLE_DEBUG_KEY!, debugUserId: process.env.CONSOLE_DEBUG_USER_ID! })
   server.requestTimeout = 30000
   server.headersTimeout = 10000
   server.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => console.log('Console API ready'))
-  const stop = () => server.close(() => { storage.close(); process.exit(0) })
+  const stop = () => { clearInterval(backupTimer); server.close(() => { storage.close(); process.exit(0) }) }
   process.once('SIGTERM', stop)
   process.once('SIGINT', stop)
   return server

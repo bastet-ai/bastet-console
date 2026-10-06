@@ -87,8 +87,13 @@ first reconciling the databases. Keep old D1 resources for recovery, not dual wr
    writes, rollback can use the prior D1 Worker. After new writes, take a fresh
    Majin backup and reconcile it; blindly reverting would lose those writes.
 
-Use SQLite's online backup API for a running database, not `cp` of its main file
-while WAL writes are active. Keep an off-host backup and test restoration. Never
+The API makes a verified SQLite online backup on startup and every 24 hours in
+`/home/pierce/bastet-console-data/backups` (mode 600 files, mode 700 directory).
+These snapshots are retained without automatic deletion. Failure logs use
+`sqlite_backup_failed`; successful verified snapshots log `sqlite_backup_verified`.
+They protect against logical mistakes, not loss of Majin's disk. An off-host
+copy is still needed. Use SQLite's online backup API for a running database, not
+`cp` of its main file while WAL writes are active. Test restoration. Never
 overwrite the live file during restore: stop the API, preserve the current file
 and WAL, restore into a fresh directory, verify integrity, then change the mount.
 

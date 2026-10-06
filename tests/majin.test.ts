@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { snapshotDatabase } from '../src/server/backup'
 import { once } from 'node:events'
 import { createServer, request as httpRequest } from 'node:http'
 import jwt from 'jsonwebtoken'
@@ -12,6 +16,22 @@ import { debugMiddleware } from '../scripts/local-debug'
 
 const serviceKey = 'service-test-only-'.repeat(4)
 const debugKey = 'debug-test-only-'.repeat(4)
+
+test('online SQLite backup restores WAL data, passes integrity checks and is private', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'console-backup-test-'))
+  const storage = new SQLiteDatabase(join(directory, 'live.sqlite'))
+  try {
+    storage.connection.exec(readFileSync('migrations/0001_console.sql', 'utf8'))
+    storage.connection.exec(readFileSync('tests/fixtures/users.sql', 'utf8'))
+    const database = new ConsoleDatabase(storage)
+    const campaign = await database.createCampaign('http-owner', { name: 'Backup fixture', scope: 'example.test' })
+    const path = await snapshotDatabase(storage.connection, join(directory, 'backups'))
+    assert.equal(statSync(path).mode & 0o777, 0o600)
+    const restored = new DatabaseSync(path, { readOnly: true })
+    try { assert.equal(restored.prepare('SELECT name FROM campaigns WHERE id=?').get(campaign!.id)?.name, 'Backup fixture') }
+    finally { restored.close() }
+  } finally { storage.close(); rmSync(directory, { recursive: true, force: true }) }
+})
 
 test('Majin HTTP adapter preserves authorization and debug access requires both server secrets', async () => {
   process.env.JWT_SECRET = 'test-jwt-only'
