@@ -16,7 +16,11 @@
     "database_id": "9dffd0e0-f0fb-4a9d-abe3-ff05ceff59ba",
     "migrations_dir": "migrations"
   }],
-  "vars": { "NEXTAUTH_URL": "https://console.bastet.ai", "CONSOLE_STORAGE": "d1" },
+  "vars": {
+    "NEXTAUTH_URL": "https://console.bastet.ai",
+    "CONSOLE_STORAGE": "majin",
+    "CONSOLE_API_ORIGIN": "https://majin.x43.io/bastet-console"
+  },
   "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": true }, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },
   "assets": {
     "directory": "dist/client",

@@ -20,3 +20,20 @@
   (D1-specific importer skipped), 12 migration tests; built D1 Worker HTTP suite.
 - Production cutover, final manifest verification and real browser checks pending
   at this implementation milestone. Private material stays under ignored `tmp/`.
+
+## Cutover preparation
+
+- Implementation milestone `43402ad487900707fabc5aca41e41f8dc6a1162c` pushed.
+- Majin image `bastet-console-api:43402ad` healthy; direct unauthenticated access
+  and service-only access to user routes return 401. Debug owner verifies with
+  both private server credentials. Buzz NIP-11 still responds normally.
+- Freeze Worker `d207054e-3ab4-4718-9c44-b4a83f508315`: verified POST /api/campaigns
+  returns 503 on the custom domain and workers.dev.
+- Final export imported into a fresh SQLite database; all 11 table counts and
+  full-row hashes compared successfully against fresh queries to frozen D1.
+- Preliminary Majin DB directory preserved at
+  `/home/pierce/bastet-console-preflight-20261005`; original D1 unchanged.
+- CI functional steps passed. Audit currently fails on existing transitive
+  `braces` advisory GHSA-vfj7-8cjw-p6xm (via vinext build plugins; audit proposes
+  a breaking vinext downgrade). The existing Socket workflow also fails because
+  `socketsecurity/cli-action@v1` cannot resolve. Neither check was disabled.
