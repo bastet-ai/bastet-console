@@ -1,5 +1,28 @@
 # Console migration evidence
 
+## 2026-10-06: Private program onboarding
+
+- Replaced anonymous, truncated GraphQL import with the official authenticated
+  Hacker API's program, structured-scope, and scope-exclusion GET resources.
+- Added authenticated integration status/import and credential-owner binding.
+  Secrets stay on Majin; no credential UI or browser-visible service secrets.
+- Full policy, asset instructions, eligibility, excluded and archived assets,
+  source URLs, timestamp and content digest survive import. Creation re-fetches
+  the preview digest; private/paused is enforced server-side. Linked scope cannot
+  be overwritten via ordinary edits or made public.
+- Refresh is a no-write preview followed by explicit acceptance, re-fetch,
+  and atomic previous-digest compare-and-set. Changed content pauses campaigns.
+- Verified synthetic coverage for authentication, cross-user isolation, full
+  pagination, unsafe redirects/next links, malformed/oversize responses,
+  stale preview and race rejection, safe text rendering, and UI review flow.
+- Initial validation: 45 tests, 6 SQLite tests (1 intentional D1-only skip),
+  12 migration tests, built Worker HTTP checks, TypeScript and production build
+  pass. Archived-asset display regression added after independent review.
+- Browser policy/scope/announcement review completed privately; no program
+  details or credentials included in Git. Existing HackerOne token is active
+  but not recoverable from the site; user credential provisioning is pending.
+- Existing unrelated `supabase/.temp/cli-latest` edit remains untouched.
+
 ## 2026-10-05: Majin API and local debug implementation
 
 - User selected moving the API/database to Majin, shared by Cloudflare and local UI.

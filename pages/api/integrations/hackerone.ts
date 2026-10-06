@@ -1,26 +1,34 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { apiFailure } from '../../../src/server/auth'
-import { fetchHackerOneProgram, hackerOneScope, hackerOneMetadata } from '../../../src/server/hackerone'
+import { authenticatedUser, apiFailure } from '../../../src/server/auth'
+import { assertHackerOneAccess, fetchHackerOneProgram, HackerOneError, hackerOneScope, hackerOneMetadata, hackerOneStatus, normalizeHackerOneHandle } from '../../../src/server/hackerone'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  const { programHandle } = req.body ?? {}
-  if (typeof programHandle !== 'string' || !/^[a-zA-Z0-9_-]{1,255}$/.test(programHandle)) return res.status(400).json({ error: 'Invalid program handle' })
+  res.setHeader('Cache-Control', 'no-store')
+  if (!['GET', 'POST'].includes(req.method ?? '')) return res.status(405).json({ error: 'Method not allowed' })
+  const userId = authenticatedUser(req, res)
+  if (!userId) return
   try {
+    if (req.method === 'GET') return res.json({ success: true, ...hackerOneStatus(userId) })
+    // The account credential belongs to one console user, not every logged-in user.
+    assertHackerOneAccess(userId)
+    const programHandle = normalizeHackerOneHandle(req.body?.programHandle)
     const team = await fetchHackerOneProgram(programHandle)
-    if (!team) return res.status(404).json({ error: 'Program not found on HackerOne' })
+    if (!team) return res.status(404).json({ error: 'Program not found or not accessible to the configured HackerOne account' })
     return res.json({
       success: true,
       campaign: {
         name: team.name || programHandle,
         description: team.about || `Security assessment program for ${team.name || programHandle}`,
         scope: hackerOneScope(team),
-        rulesOfEngagement: team.policy || 'See program policy on HackerOne',
+        privacy: 'private',
+        status: 'paused',
+        rulesOfEngagement: team.policy || '',
         hackerone_handle: team.handle,
         hackerone_metadata: { ...hackerOneMetadata(team), imported_at: new Date().toISOString() }
       }
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof HackerOneError) return res.status(error.status).json({ error: error.message })
     return apiFailure(res, 'hackerone_import')
   }
 }

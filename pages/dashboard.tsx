@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Navbar from '../src/components/Navbar'
-import CampaignForm from '../src/components/CampaignForm'
+import CampaignForm, { type CampaignSubmission } from '../src/components/CampaignForm'
 import { type User, verifySession } from '../src/lib/authClient'
 
 // Extend Window interface for polling interval
@@ -46,13 +46,6 @@ interface Activity {
   activity_type: string
   activity_data: any
   created_at: string
-}
-
-interface CampaignFormData {
-  name: string
-  description: string
-  scope: string
-  privacy: 'private' | 'public'
 }
 
 export default function CampaignDashboard() {
@@ -152,7 +145,7 @@ export default function CampaignDashboard() {
     }, 30000)
   }
 
-  const handleCreateCampaign = async (campaignData: CampaignFormData) => {
+  const handleCreateCampaign = async (campaignData: CampaignSubmission) => {
     try {
       setCreating(true)
       setError(null)
@@ -342,6 +335,7 @@ export default function CampaignDashboard() {
                   onSubmit={handleCreateCampaign}
                   onCancel={() => setShowCreateForm(false)}
                   loading={creating}
+                  submitError={error}
                 />
               </div>
             </div>

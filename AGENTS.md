@@ -11,6 +11,13 @@ recovery; never switch back to stale D1 after Majin has accepted new writes.
 Stage only task-related changes, not unrelated working-tree edits. Record release
 and live verification evidence in `NOTES.md`; validate before commit/push/deploy.
 
+Private HackerOne integration uses server-only credentials on Majin, bound to
+one console owner ID. Keep imports private/paused, preserve full scope and
+exclusions, and re-fetch/digest-check before save. Refresh must preview before
+acceptance with an atomic previous-digest guard. Never commit private program
+facts or fixtures. API snapshots do not verify separate announcements or grant
+permission to launch testing. Use synthetic program data in tests.
+
 ## Important Reminder for AI Agents
 
 **ALWAYS commit and push your changes after every update!**

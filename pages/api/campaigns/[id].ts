@@ -27,6 +27,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!['owner', 'manager'].includes(role)) return res.status(403).json({ error: 'Only owners and managers can update campaigns' })
     const { value, error } = campaignInput(req.body, true)
     if (error || !value) return res.status(400).json({ error })
+    const existingCampaign = await db.campaign(userId, id)
+    if (!existingCampaign) return res.status(404).json({ error: 'Campaign not found' })
+    if (existingCampaign.hackerone_handle) {
+      if (value.privacy === 'public') return res.status(400).json({ error: 'HackerOne-linked campaigns must remain private' })
+      if (value.scope !== undefined) return res.status(400).json({ error: 'Use HackerOne sync to review and update the authoritative scope' })
+      value.privacy = 'private'
+    }
     const campaign = await db.updateCampaign(userId, id, value)
     return campaign ? res.json({ success: true, campaign }) : res.status(403).json({ error: 'Access denied' })
   } catch {

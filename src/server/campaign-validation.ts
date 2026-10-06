@@ -1,4 +1,14 @@
 import type { CampaignInput } from './database'
+import { normalizeHackerOneHandle } from './hackerone'
+
+// A client digest is an optimistic-concurrency claim, never authoritative metadata.
+export function hackerOneSnapshotDigest(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const snapshot = (metadata as Record<string, unknown>).scope_snapshot
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
+  const sha256 = (snapshot as Record<string, unknown>).sha256
+  return typeof sha256 === 'string' && /^[a-f0-9]{64}$/.test(sha256) ? sha256 : null
+}
 
 export function campaignInput(body: unknown, partial = false): { value?: Partial<CampaignInput>; error?: string } {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'Invalid campaign data' }
@@ -24,9 +34,9 @@ export function campaignInput(body: unknown, partial = false): { value?: Partial
     value.status = data.status
   }
   if (!partial && data.hackerone_handle !== undefined) {
-    if (typeof data.hackerone_handle !== 'string' || !/^[a-zA-Z0-9_-]{1,255}$/.test(data.hackerone_handle)) return { error: 'Invalid HackerOne handle' }
-    value.hackerone_handle = data.hackerone_handle
-    value.hackerone_metadata = data.hackerone_metadata ?? null
+    if (typeof data.hackerone_handle !== 'string') return { error: 'Invalid HackerOne handle or program URL' }
+    try { value.hackerone_handle = normalizeHackerOneHandle(data.hackerone_handle) }
+    catch { return { error: 'Invalid HackerOne handle or program URL' } }
   }
   return { value }
 }

@@ -340,6 +340,67 @@
   margin-top: 0.25rem;
 }
 
+.hackerone-snapshot {
+  margin: 1.25rem 0;
+  min-width: 0;
+  color: #334155;
+}
+
+.hackerone-snapshot-provenance,
+.hackerone-snapshot-asset {
+  padding: 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin: 0.75rem 0;
+  overflow-wrap: anywhere;
+}
+
+.hackerone-snapshot details {
+  margin: 1rem 0;
+}
+
+.hackerone-snapshot summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hackerone-policy-text,
+.hackerone-snapshot dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.hackerone-policy-text {
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.hackerone-snapshot-assets {
+  max-height: 32rem;
+  overflow: auto;
+}
+
+.hackerone-snapshot dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.hackerone-snapshot dd { margin: 0; }
+.hackerone-snapshot h4 { margin: 0; }
+.hackerone-review-check { display: flex; gap: 0.65rem; align-items: flex-start; line-height: 1.5; }
+.hackerone-review-check input { margin-top: 0.25rem; }
+.hackerone-sync-preview { margin-top: 1.25rem; border: 2px solid #cbd5e1; border-radius: 8px; padding: 1rem; }
+.form-help a { text-decoration: underline; }
+
 .form-radio-group {
   display: flex;
   flex-direction: column;

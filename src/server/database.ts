@@ -135,10 +135,10 @@ export class ConsoleDatabase {
     // D1 batch is transactional: the owner membership and activity records cannot be partially created.
     await this.db.batch([
       this.db.prepare(`INSERT INTO campaigns
-        (id, name, description, scope, privacy, owner_id, hackerone_handle, hackerone_last_synced, hackerone_metadata, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(id, input.name, input.description ?? null, input.scope, input.privacy ?? 'private', userId,
-          input.hackerone_handle ?? null, input.hackerone_handle ? timestamp : null, json(input.hackerone_metadata), timestamp, timestamp),
+        (id, name, description, scope, privacy, status, owner_id, hackerone_handle, hackerone_last_synced, hackerone_metadata, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(id, input.name, input.description ?? null, input.scope, input.privacy ?? 'private', input.status ?? 'active', userId,
+          input.hackerone_handle ?? null, input.hackerone_handle ? input.hackerone_last_synced ?? timestamp : null, json(input.hackerone_metadata), timestamp, timestamp),
       this.db.prepare('INSERT INTO campaign_members (id, campaign_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)')
         .bind(crypto.randomUUID(), id, userId, 'owner', timestamp),
       this.db.prepare('INSERT INTO campaign_activities (id, campaign_id, user_id, activity_type, activity_data, created_at) VALUES (?, ?, ?, ?, ?, ?)')
@@ -150,14 +150,16 @@ export class ConsoleDatabase {
     return this.campaign(userId, id)
   }
 
-  async updateCampaign(userId: string, campaignId: string, input: Partial<CampaignInput>) {
+  async updateCampaign(userId: string, campaignId: string, input: Partial<CampaignInput>, expectedHackerOneDigest?: string | null) {
     const fields = ['name', 'description', 'scope', 'privacy', 'status', 'hackerone_handle', 'hackerone_last_synced', 'hackerone_metadata'] as const
     const changed = fields.filter(field => input[field] !== undefined)
     const values = changed.map(field => field === 'hackerone_metadata' ? json(input[field]) : input[field] as SqlValue)
+    const digestGuard = expectedHackerOneDigest !== undefined
+      ? " AND json_extract(hackerone_metadata, '$.scope_snapshot.sha256') IS ?" : ''
     const row = await this.db.prepare(`UPDATE campaigns SET ${changed.map(field => `${field} = ?, `).join('')}updated_at = ?
       WHERE id = ? AND (owner_id = ? OR EXISTS (SELECT 1 FROM campaign_members m
-        WHERE m.campaign_id = campaigns.id AND m.user_id = ? AND m.role IN ('owner', 'manager'))) RETURNING *`)
-      .bind(...values, now(), campaignId, userId, userId).first<Row>()
+        WHERE m.campaign_id = campaigns.id AND m.user_id = ? AND m.role IN ('owner', 'manager')))${digestGuard} RETURNING *`)
+      .bind(...values, now(), campaignId, userId, userId, ...(expectedHackerOneDigest !== undefined ? [expectedHackerOneDigest] : [])).first<Row>()
     return row ? decodeCampaign(row) : null
   }
 

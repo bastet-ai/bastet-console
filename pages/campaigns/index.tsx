@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Navbar from '../../src/components/Navbar'
-import CampaignForm from '../../src/components/CampaignForm'
+import CampaignForm, { type CampaignSubmission } from '../../src/components/CampaignForm'
 import { type User, verifySession } from '../../src/lib/authClient'
 
 interface Campaign {
@@ -25,13 +25,6 @@ interface Campaign {
       avatar_url?: string
     }
   }>
-}
-
-interface CampaignFormData {
-  name: string
-  description: string
-  scope: string
-  privacy: 'private' | 'public'
 }
 
 export default function CampaignsDashboard() {
@@ -87,7 +80,7 @@ export default function CampaignsDashboard() {
     }
   }
 
-  const handleCreateCampaign = async (campaignData: CampaignFormData) => {
+  const handleCreateCampaign = async (campaignData: CampaignSubmission) => {
     try {
       setCreating(true)
       setError(null)
@@ -233,6 +226,7 @@ export default function CampaignsDashboard() {
                   onSubmit={handleCreateCampaign}
                   onCancel={() => setShowCreateForm(false)}
                   loading={creating}
+                  submitError={error}
                 />
               </div>
             </div>

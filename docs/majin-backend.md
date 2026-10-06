@@ -62,6 +62,50 @@ Runtime secrets live in `/home/pierce/gitops-secrets/console/api.env`, mode 600:
 Compose's release tag lives in the adjacent `.env` as `CONSOLE_RELEASE`.
 No secret files belong in Git or Docker image layers.
 
+### Private HackerOne onboarding
+
+The optional integration uses the official Hacker API, not anonymous GraphQL.
+Configure `HACKERONE_API_USERNAME`, `HACKERONE_API_TOKEN`, and
+`HACKERONE_API_OWNER_ID` in Majin's private `api.env`, then recreate only the
+console API service. The owner ID is an existing **console user ID**, not the
+HackerOne username. Only that signed-in user may use this account credential.
+Do not put these values in Cloudflare, Vite variables, browser storage, Git,
+images, logs, or campaign metadata. A local ignored `.env.hackerone.local` can
+be used for private provisioning; it is not loaded by the frontend.
+
+HackerOne personal tokens are account credentials, not a program-specific
+read-only grant. Bastet calls only three documented GET resources: program,
+structured scopes, and scope exclusions. It never submits reports, accepts
+invitations, or launches tests. Generating a personal token revokes the previous
+one; confirm existing consumers before rotating it. See the
+[official token guide](https://docs.hackerone.com/en/articles/8410331-api-token)
+and [Hacker API reference](https://api.hackerone.com/hacker-resources/).
+
+Onboarding accepts a program handle or HackerOne program URL. Review the full
+policy, included and excluded assets, bounty eligibility, full asset notes,
+and linked private rules/announcements. API access alone does not verify all
+separate web pages, personal eligibility, or testing authorization. Resolve
+conflicts with the program before testing. Private data must not be shared
+with uninvited collaborators or copied into public repository fixtures.
+
+Imports remain private and start paused. The server re-fetches and verifies
+the preview SHA-256 at creation; client-supplied policy and metadata are not
+trusted. The snapshot stores complete returned text, source URLs, fetch time,
+and a digest excluding fetch time. Pagination is bounded to 100 pages per
+collection and 4 MiB total upstream data. Any incomplete/failed fetch leaves
+existing data unchanged. Large snapshots beyond these limits require a
+separate reviewed import, not silent truncation. Large-snapshot D1 recovery
+compatibility is not established; production uses Majin SQLite.
+
+Refresh is preview then explicit acceptance. The server verifies both the
+new digest and the previous saved digest; an atomic database condition rejects
+concurrent changes. Changed snapshots pause the campaign. The prior digest is
+retained as one-hop provenance, not full version history. Existing legacy
+imports have no full verified snapshot until refreshed. Snapshot acceptance
+is not runner authorization; automated target enforcement is outside this
+onboarding feature. An upstream program pause or new restriction discovered
+by preview must be respected immediately, even before saving the update.
+
 Cloudflare needs `CONSOLE_SERVICE_KEY` as a secret and `CONSOLE_API_ORIGIN` as
 `https://majin.x43.io/bastet-console`. Production preview URLs are disabled.
 `CONSOLE_STORAGE=d1` is an explicit migration/rollback mode, never an automatic

@@ -4,6 +4,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Navbar from '../../src/components/Navbar'
+import HackerOneScopeSnapshot, { type HackerOneMetadata, type HackerOneScopeSnapshotData } from '../../src/components/HackerOneScopeSnapshot'
 import { type User, verifySession } from '../../src/lib/authClient'
 
 interface CampaignMember {
@@ -43,9 +44,19 @@ interface Campaign {
   updated_at: string
   hackerone_handle?: string
   hackerone_last_synced?: string
-  hackerone_metadata?: any
+  hackerone_metadata?: HackerOneMetadata
+  rules_of_engagement?: string
   userRole: string
   campaign_members: CampaignMember[]
+}
+
+interface SyncPreview {
+  sha256: string
+  previous_sha256: string | null
+  changed: boolean
+  scope: string
+  policy: string
+  scope_snapshot: HackerOneScopeSnapshotData
 }
 
 export default function CampaignDetail() {
@@ -59,6 +70,9 @@ export default function CampaignDetail() {
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [syncPreview, setSyncPreview] = useState<SyncPreview | null>(null)
+  const [syncReviewed, setSyncReviewed] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'observations' | 'findings' | 'tasks' | 'nodes' | 'chat'>('overview')
 
   useEffect(() => {
@@ -190,35 +204,46 @@ export default function CampaignDetail() {
     return campaign?.userRole && ['owner', 'manager', 'collaborator'].includes(campaign.userRole)
   }
 
-  const handleSync = async () => {
+  const handleSync = async (accept = false) => {
     if (!campaign?.id || !campaign.hackerone_handle) return
+    if (accept && (!syncPreview || !syncReviewed)) return
 
     setSyncing(true)
     setSyncError(null)
+    setSyncMessage(null)
 
     try {
       const token = localStorage.getItem('auth_token')
+      if (!token) throw new Error('Sign in before checking program changes.')
       const response = await fetch('/api/campaigns/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ campaignId: campaign.id })
+        body: JSON.stringify(accept && syncPreview ? {
+          campaignId: campaign.id,
+          expectedSha256: syncPreview.sha256,
+          previousSha256: syncPreview.previous_sha256
+        } : { campaignId: campaign.id })
       })
 
-      const data = await response.json() as ApiResult<{ campaign: Partial<Campaign> }>
+      const data = await response.json() as ApiResult<{ campaign: Partial<Campaign>; preview?: SyncPreview; message?: string }>
 
-      if (data.success) {
-        // Refresh campaign data
+      if (response.ok && data.success) {
         setCampaign({ ...campaign, ...data.campaign })
-        alert('Campaign synced successfully with HackerOne!')
+        setSyncPreview(data.preview ?? null)
+        setSyncReviewed(false)
+        setSyncMessage(data.preview ? 'Latest snapshot retrieved for review. Nothing has been saved.' : data.message || 'Reviewed snapshot saved. A changed scope or policy pauses the campaign.')
       } else {
-        setSyncError(data.error || 'Failed to sync campaign')
+        setSyncError(!data.success && data.error || 'Failed to sync campaign')
+        if (response.status === 409) {
+          setSyncPreview(null)
+          setSyncReviewed(false)
+        }
       }
     } catch (error) {
-      console.error('Sync error:', error)
-      setSyncError('Failed to sync campaign. Please try again.')
+      setSyncError(error instanceof Error ? error.message : 'Failed to sync campaign. Please try again.')
     } finally {
       setSyncing(false)
     }
@@ -358,19 +383,19 @@ export default function CampaignDetail() {
                   </div>
                   {canManageCampaign() && (
                     <button
-                      onClick={handleSync}
+                      onClick={() => handleSync()}
                       disabled={syncing}
                       className={`sync-button ${syncing ? 'syncing' : ''}`}
                     >
                       {syncing ? (
                         <>
                           <span className="sync-spinner"></span>
-                          Syncing...
+                          Checking...
                         </>
                       ) : (
                         <>
                           <span>🔄</span>
-                          Re-sync with HackerOne
+                          Check HackerOne for Changes
                         </>
                       )}
                     </button>
@@ -379,13 +404,36 @@ export default function CampaignDetail() {
               )}
             </div>
             {syncError && (
-              <div className="sync-error">
+              <div className="sync-error" role="alert">
                 {syncError}
               </div>
             )}
+            {syncMessage && <p role="status">{syncMessage}</p>}
             <div className="campaign-scope-content">
               {campaign.scope}
             </div>
+            {campaign.hackerone_handle && (
+              <>
+                <p className="form-help">Checking for changes is read-only. Saving a changed snapshot pauses the campaign and requires a new scope review before testing. This is not a runner-enforced scope control.</p>
+                <p className="form-help">Manually review <a href={`https://hackerone.com/${encodeURIComponent(campaign.hackerone_handle)}/invite_only`} target="_blank" rel="noopener noreferrer">private-program rules</a>, <a href={`https://hackerone.com/${encodeURIComponent(campaign.hackerone_handle)}/updates`} target="_blank" rel="noopener noreferrer">updates and announcements</a>, and <a href="https://docs.hackerone.com/en/articles/8494488-core-ineligible-findings" target="_blank" rel="noopener noreferrer">core ineligible findings</a>. These separate pages are not verified by an API snapshot.</p>
+                {campaign.hackerone_metadata?.scope_snapshot ? <HackerOneScopeSnapshot snapshot={campaign.hackerone_metadata.scope_snapshot} /> : <div className="import-info"><p>This legacy import has no verified full snapshot. Check HackerOne for changes to review and save one before testing.</p>{campaign.rules_of_engagement && <pre className="hackerone-policy-text">{campaign.rules_of_engagement}</pre>}</div>}
+              </>
+            )}
+            {syncPreview && (
+              <section className="hackerone-sync-preview" aria-label="Review HackerOne changes">
+                <h3>{syncPreview.changed ? 'Policy or scope changed' : 'No policy or scope changes detected'}</h3>
+                <p>{syncPreview.changed ? 'Review the latest complete snapshot below. Accepting it will pause this campaign; it will not start or resume testing.' : 'You can refresh the saved verification timestamp after reviewing this snapshot.'}</p>
+                <HackerOneScopeSnapshot snapshot={syncPreview.scope_snapshot} />
+                <label className="hackerone-review-check">
+                  <input type="checkbox" checked={syncReviewed} disabled={syncing} onChange={event => setSyncReviewed(event.target.checked)} />
+                  <span>I reviewed this snapshot and the separate program rules and updates. I understand that changes require a fresh assessment of testing authorization.</span>
+                </label>
+                <div className="form-actions">
+                  <button type="button" className="form-button form-button-secondary" disabled={syncing} onClick={() => { setSyncPreview(null); setSyncReviewed(false); setSyncMessage(null) }}>Discard Preview</button>
+                  <button type="button" className="form-button form-button-primary" disabled={syncing || !syncReviewed} onClick={() => handleSync(true)}>{syncing ? 'Verifying...' : syncPreview.changed ? 'Save Reviewed Snapshot and Pause' : 'Save Reviewed Snapshot'}</button>
+                </div>
+              </section>
+            )}
           </div>
 
           {/* Navigation Tabs */}
