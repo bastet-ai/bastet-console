@@ -30,13 +30,15 @@ export function debugMiddleware(config: Record<string, string | undefined>, port
       if (req.method === 'GET') return reply(200, { enabled: true })
       if (req.method !== 'POST') return reply(405, { error: 'Method not allowed' })
       if (req.headers['x-console-local-login'] !== '1') return reply(403, { error: 'Local login header required' })
-      const response = await proxyApi(new Request(`${localOrigin}/api/auth/verify`), origin, serviceKey, debugKey)
-      const data = await response.json() as { valid?: boolean; user?: unknown }
-      if (!response.ok || !data.valid) return reply(502, { error: 'Debug account is unavailable' })
-      if (sessions.size >= 1000) return reply(429, { error: 'Too many local sessions; restart the debug server' })
-      const token = `local-debug.${randomBytes(32).toString('base64url')}`
-      sessions.set(token, Date.now() + 8 * 60 * 60 * 1000)
-      return reply(200, { success: true, user: data.user, token })
+      try {
+        const response = await proxyApi(new Request(`${localOrigin}/api/auth/verify`), origin, serviceKey, debugKey)
+        const data = await response.json() as { valid?: boolean; user?: unknown }
+        if (!response.ok || !data.valid) return reply(502, { error: 'Debug account is unavailable' })
+        if (sessions.size >= 1000) return reply(429, { error: 'Too many local sessions; restart the debug server' })
+        const token = `local-debug.${randomBytes(32).toString('base64url')}`
+        sessions.set(token, Date.now() + 8 * 60 * 60 * 1000)
+        return reply(200, { success: true, user: data.user, token })
+      } catch { return reply(502, { error: 'Debug account is unavailable' }) }
     }
     const token = req.headers.authorization?.replace(/^Bearer /, '') || ''
     if (url.pathname === '/api/auth/logout' && req.method === 'POST') {

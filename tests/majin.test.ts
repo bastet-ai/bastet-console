@@ -28,7 +28,10 @@ test('online SQLite backup restores WAL data, passes integrity checks and is pri
     const path = await snapshotDatabase(storage.connection, join(directory, 'backups'))
     assert.equal(statSync(path).mode & 0o777, 0o600)
     const restored = new DatabaseSync(path, { readOnly: true })
-    try { assert.equal(restored.prepare('SELECT name FROM campaigns WHERE id=?').get(campaign!.id)?.name, 'Backup fixture') }
+    try {
+      assert.equal(restored.prepare('PRAGMA journal_mode').get()?.journal_mode, 'delete')
+      assert.equal(restored.prepare('SELECT name FROM campaigns WHERE id=?').get(campaign!.id)?.name, 'Backup fixture')
+    }
     finally { restored.close() }
   } finally { storage.close(); rmSync(directory, { recursive: true, force: true }) }
 })
@@ -76,9 +79,11 @@ test('Majin HTTP adapter preserves authorization and debug access requires both 
 test('local login rejects DNS rebinding, cross-origin requests, missing CSRF header, and production tokens', async () => {
   const originalFetch = globalThis.fetch
   let debugRequests = 0
+  let unavailable = false
   globalThis.fetch = (async (url: any, options: any) => {
     if (String(url).startsWith('https://backend.test/')) {
       debugRequests++
+      if (unavailable) return new Response('Origin unavailable', { status: 502 })
       assert.equal(new Headers(options.headers).get('x-console-debug-key'), debugKey)
       return Response.json({ valid: true, user: { id: 'owner' } })
     }
@@ -110,5 +115,9 @@ test('local login rejects DNS rebinding, cross-origin requests, missing CSRF hea
     assert.equal((await originalFetch(origin + '/api/auth/verify', { headers: { authorization: `Bearer ${data.token}` } })).status, 200)
     await originalFetch(origin + '/api/auth/logout', { method: 'POST', headers: { authorization: `Bearer ${data.token}` } })
     assert.equal((await originalFetch(origin + '/api/auth/verify', { headers: { authorization: `Bearer ${data.token}` } })).status, 401)
+    unavailable = true
+    assert.equal((await login({ 'x-console-local-login': '1', origin })).status, 502)
+    unavailable = false
+    assert.equal((await login({ 'x-console-local-login': '1', origin })).status, 200)
   } finally { globalThis.fetch = originalFetch; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())) }
 })

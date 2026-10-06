@@ -76,15 +76,13 @@ export function startApiServer() {
     if (!process.env[name]) throw new Error(`Missing ${name}`)
   }
   const storage = new SQLiteDatabase(process.env.CONSOLE_DB_PATH!)
-  let backingUp = false
-  const snapshot = async () => {
-    if (backingUp) return
-    backingUp = true
-    try {
-      await snapshotDatabase(storage.connection, join(dirname(process.env.CONSOLE_DB_PATH!), 'backups'))
-      console.log(JSON.stringify({ event: 'sqlite_backup_verified' }))
-    } catch { console.error(JSON.stringify({ event: 'sqlite_backup_failed' })) }
-    finally { backingUp = false }
+  let pendingBackup: Promise<void> | undefined
+  const snapshot = () => {
+    if (pendingBackup) return
+    pendingBackup = snapshotDatabase(storage.connection, join(dirname(process.env.CONSOLE_DB_PATH!), 'backups'))
+      .then(() => { console.log(JSON.stringify({ event: 'sqlite_backup_verified' })) })
+      .catch(() => { console.error(JSON.stringify({ event: 'sqlite_backup_failed' })) })
+      .finally(() => { pendingBackup = undefined })
   }
   void snapshot()
   const backupTimer = setInterval(() => { void snapshot() }, 24 * 60 * 60 * 1000)
@@ -94,7 +92,7 @@ export function startApiServer() {
   server.requestTimeout = 30000
   server.headersTimeout = 10000
   server.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => console.log('Console API ready'))
-  const stop = () => { clearInterval(backupTimer); server.close(() => { storage.close(); process.exit(0) }) }
+  const stop = () => { clearInterval(backupTimer); server.close(async () => { await pendingBackup; storage.close(); process.exit(0) }) }
   process.once('SIGTERM', stop)
   process.once('SIGINT', stop)
   return server

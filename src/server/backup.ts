@@ -8,8 +8,10 @@ export async function snapshotDatabase(source: DatabaseSync, directory: string) 
   if (existsSync(target)) throw new Error('Backup destination already exists')
   await backup(source, target)
   chmodSync(target, 0o600)
-  const restored = new DatabaseSync(target, { readOnly: true })
+  const restored = new DatabaseSync(target)
   try {
+    // Make the snapshot portable as one file, with no WAL/SHM sidecars required.
+    restored.exec('PRAGMA journal_mode=DELETE;')
     const result = restored.prepare('PRAGMA integrity_check').all()
     if (result.length !== 1 || result[0].integrity_check !== 'ok' || restored.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Backup validation failed')
   } finally { restored.close() }
