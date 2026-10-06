@@ -1,0 +1,15 @@
+[Unit]
+Description=Bastet local PostgreSQL-backed API
+Wants=bastet-console-db-tunnel.service
+After=bastet-console-db-tunnel.service
+
+[Service]
+WorkingDirectory=/home/pierce/projects/bastet-console
+ExecStart=/home/pierce/.nvm/versions/node/v24.19.0/bin/node --env-file=/home/pierce/projects/bastet-console/.env.postgres.local --import tsx scripts/serve-api.ts
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Protected Bastet PostgreSQL database and role backup
+
+[Service]
+Type=oneshot
+ExecStart=/home/pierce/gitops/bastet-infrastructure/console/backup-postgres.sh
+UMask=0077
+TimeoutStartSec=30min
+NoNewPrivileges=true

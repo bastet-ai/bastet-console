@@ -14,6 +14,10 @@ export interface HackerOneMetadata {
   [key: string]: unknown
 }
 
+function isObjectRow(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function ScopeAssets({ assets }: { assets: Record<string, unknown>[] }) {
   return (
     <div className="hackerone-snapshot-assets">
@@ -36,6 +40,12 @@ function ScopeAssets({ assets }: { assets: Record<string, unknown>[] }) {
 
 /** Provider content is untrusted text, never HTML, embedded images, or executable links. */
 export default function HackerOneScopeSnapshot({ snapshot }: { snapshot: HackerOneScopeSnapshotData }) {
+  if (!isObjectRow(snapshot) || typeof snapshot.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(snapshot.sha256)
+    || typeof snapshot.fetched_at !== 'string' || typeof snapshot.policy !== 'string'
+    || !Array.isArray(snapshot.assets) || !snapshot.assets.every(isObjectRow)
+    || !Array.isArray(snapshot.exclusions) || !snapshot.exclusions.every(isObjectRow)) {
+    return <section className="hackerone-snapshot" aria-label="HackerOne policy and scope snapshot"><h3>Scope snapshot unavailable</h3><p role="alert">The saved policy or scope data is incomplete or malformed. Refresh and review a complete HackerOne snapshot before setup or testing. Do not rely on a partial scope list.</p></section>
+  }
   const inScope = snapshot.assets.filter(asset => asset.eligible_for_submission === true && !asset.archived_at)
   const outOfScope = snapshot.assets.filter(asset => asset.eligible_for_submission !== true && !asset.archived_at)
   const archived = snapshot.assets.filter(asset => Boolean(asset.archived_at))

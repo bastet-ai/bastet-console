@@ -8,7 +8,12 @@ import { proxyApi } from '../src/server/proxy'
 
 export function debugMiddleware(config: Record<string, string | undefined>, port: number) {
   const { CONSOLE_API_ORIGIN: origin, CONSOLE_SERVICE_KEY: serviceKey, CONSOLE_DEBUG_KEY: debugKey } = config
-  if (!origin?.startsWith('https://') || !serviceKey || !debugKey) throw new Error('Local debug backend credentials are missing')
+  let backend: URL
+  try { backend = new URL(origin || '') } catch { throw new Error('Local debug backend credentials are missing') }
+  const loopbackHttp = backend.protocol === 'http:' && ['127.0.0.1', '[::1]'].includes(backend.hostname)
+  if (!origin || (!loopbackHttp && backend.protocol !== 'https:') || backend.username || backend.password || backend.search || backend.hash || !serviceKey || !debugKey) {
+    throw new Error('Local debug backend credentials are missing')
+  }
   const sessions = new Map<string, number>()
   const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`])
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {

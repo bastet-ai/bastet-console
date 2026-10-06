@@ -1,11 +1,14 @@
 # Bastet Console
 
 The Bastet management console serves its frontend from Cloudflare Workers with
-vinext (Pages Router). The API, Google OAuth exchange, and SQLite database run on
-Majin. The local debug console uses that same backend and live data.
+vinext (Pages Router). Local and hosted Node APIs share the `console` schema in
+Majin's PostgreSQL database. The hosted API remains on Majin as a transitional
+Worker proxy target; the local API runs on this workstation. HackerOne account
+credentials stay only on the workstation. Both consoles see the same live data.
 
-See [Majin and local development](docs/majin-backend.md) for deployment, security,
-backup and rollback instructions. The older D1 migration runbook is historical.
+See [PostgreSQL and local development](docs/postgres-backend.md) and
+[Majin deployment](docs/majin-backend.md) for security, backup and rollback
+instructions. The older D1 and SQLite migration sections are historical.
 
 ## Development
 
@@ -13,6 +16,8 @@ Use Node.js 24 and the checked-in npm lockfile.
 
 ```sh
 npm ci
+node --env-file=.env.postgres.local --import tsx scripts/serve-api.ts
+# In another terminal, with the protected SSH database tunnel running:
 npm run dev:debug
 ```
 
@@ -43,14 +48,18 @@ Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` during the build. Set runtime credentials wit
 | Setting | Location |
 | --- | --- |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Build environment, public OAuth client ID |
-| `GOOGLE_CLIENT_ID` | Majin environment; same OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Majin secret |
-| `JWT_SECRET` | Majin secret; preserve it to keep existing sessions valid |
-| `NEXTAUTH_URL` | Majin environment, `https://console.bastet.ai` |
+| `GOOGLE_CLIENT_ID` | Local and Majin API environments; same OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Local and Majin API secrets |
+| `JWT_SECRET` | Both APIs; preserve it to keep existing sessions valid |
+| `NEXTAUTH_URL` | Both APIs, `https://console.bastet.ai` |
 | `CONSOLE_API_ORIGIN` | Worker variable and local server configuration |
 | `CONSOLE_SERVICE_KEY` | Worker, local server, and Majin secrets |
 | `CONSOLE_DEBUG_KEY` | Local server and Majin only, never the browser |
-| `CONSOLE_DEBUG_USER_ID` | Majin environment; existing console owner |
+| `CONSOLE_DEBUG_USER_ID` | Both APIs; existing console owner |
+| `CONSOLE_STORAGE` | Both Node APIs, explicitly `postgres` |
+| `CONSOLE_DATABASE_URL` | Each API's protected environment, limited console service login |
+| `CONSOLE_POSTGRES_CA_FILE` | Server-only CA path for verified PostgreSQL TLS |
+| `HACKERONE_API_USERNAME`, `HACKERONE_API_TOKEN`, `HACKERONE_API_OWNER_ID` | Local API only; never Majin, Worker, browser, or agents |
 | `DB` | Retained D1 recovery binding, not the live database after cutover |
 
 ```sh
@@ -58,7 +67,7 @@ CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false npm run build
 npm run deploy
 ```
 
-Do not import into a live database or switch to stale D1 after Majin accepts writes.
+Do not import into a live database or switch to stale SQLite/D1 after PG accepts writes.
 Check for an active Git build before manual deployment. See the Majin runbook.
 
 The legacy WebSocket endpoint was never a functioning socket server. It now

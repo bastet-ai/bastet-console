@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
+import { buildProgramSetupPlan } from '../lib/programSetupPlan'
 
 const API = 'https://api.hackerone.com'
 const MAX_BYTES = 4 * 1024 * 1024
 const MAX_PAGES = 100
 
 export class HackerOneError extends Error {
-  constructor(public status: number, message: string) { super(message); this.name = 'HackerOneError' }
+  constructor(public status: number, message: string, readonly upstreamStatus?: number) { super(message); this.name = 'HackerOneError' }
 }
 
 export interface ScopeAsset {
@@ -42,6 +43,12 @@ export interface Team {
   fetched_at: string
   sha256: string
 }
+export interface HackerOneProgramCandidate {
+  handle: string
+  name: string
+  url: string
+}
+export type HackerOneProgramLookup = { programHandle: string; candidates?: never } | { candidates: HackerOneProgramCandidate[]; programHandle?: never }
 
 export function normalizeHackerOneHandle(input: unknown): string {
   let handle = typeof input === 'string' ? input.trim() : ''
@@ -65,7 +72,7 @@ export function hackerOneStatus(userId: string) {
 
 export function assertHackerOneAccess(userId: string): void {
   const { configured, authorized } = hackerOneStatus(userId)
-  if (!configured) throw new HackerOneError(503, 'HackerOne is not configured. Add the server-only API username, token and console owner ID on Majin.')
+  if (!configured) throw new HackerOneError(503, 'HackerOne is not configured. Provision the server-only API username, token and console owner ID on the local console backend.')
   if (!authorized) throw new HackerOneError(403, 'Only the configured HackerOne integration owner can import or refresh private programs.')
 }
 
@@ -89,18 +96,39 @@ function resource(value: unknown, type: string): { id: string; attributes: JsonO
   if (row.type !== type || !['string', 'number'].includes(typeof row.id) || String(row.id).length === 0) throw new HackerOneError(502, 'HackerOne returned an invalid resource. No scope was saved.')
   return { id: String(row.id), attributes: object(row.attributes) }
 }
+// The documented single-resource envelope and the live bare-resource response
+// are both supported. A present but malformed `data` must never fall back.
+function singleProgram(document: JsonObject): unknown {
+  return Object.prototype.hasOwnProperty.call(document, 'data') ? document.data : document
+}
+function programCandidate(value: unknown): { id: string; candidate: HackerOneProgramCandidate } {
+  const { id, attributes } = resource(value, 'program')
+  const handle = text(attributes.handle, true)
+  const name = text(attributes.name, true)
+  if (!/^[a-zA-Z0-9_-]{1,255}$/.test(handle) || name.length > 512 || /[\p{Cc}\p{Cf}]/u.test(name)) {
+    throw new HackerOneError(502, 'HackerOne returned an invalid program identity. No program was selected.')
+  }
+  const normalizedHandle = handle.toLowerCase()
+  return { id, candidate: { handle: normalizedHandle, name, url: `https://hackerone.com/${normalizedHandle}` } }
+}
+function apiAuthorization(): string {
+  const username = process.env.HACKERONE_API_USERNAME?.trim()
+  const token = process.env.HACKERONE_API_TOKEN?.trim()
+  if (!username || !token || username.includes(':')) throw new HackerOneError(503, 'HackerOne API credentials are not configured correctly on the local console backend.')
+  return `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`
+}
 
 // Only documented read endpoints. Never forward credentials through redirects
 // or follow URLs embedded in program policy or scope instructions.
 async function apiJson(url: URL, authorization: string, signal: AbortSignal, budget: { bytes: number }) {
   let response: Response
   try {
-    response = await fetch(url, { method: 'GET', headers: { Authorization: authorization, Accept: 'application/json', 'User-Agent': 'Bastet-Console/2.0' }, redirect: 'manual', signal })
+    response = await fetch(url, { method: 'GET', headers: { Authorization: authorization, Accept: 'application/json', 'User-Agent': 'Bastet-Console/2.0' }, redirect: 'manual', cache: 'no-store', signal })
   } catch { throw new HackerOneError(502, 'HackerOne could not be reached. No scope was saved; try again later.') }
   if (!response.ok) {
     await response.body?.cancel()
     if (response.status === 401) throw new HackerOneError(502, 'HackerOne rejected the configured API credential. Ask the integration owner to verify it.')
-    if (response.status === 403 || response.status === 404) throw new HackerOneError(404, 'Program or scope is unavailable to the configured HackerOne account. Confirm the private invitation is accepted.')
+    if (response.status === 403 || response.status === 404) throw new HackerOneError(404, 'Program or scope is unavailable to the configured HackerOne account. Confirm the private invitation is accepted.', response.status)
     if (response.status === 429) throw new HackerOneError(429, 'HackerOne rate limit reached. No scope was saved; try again later.')
     throw new HackerOneError(502, 'HackerOne returned an unexpected response. No scope was saved.')
   }
@@ -149,16 +177,61 @@ async function collection(path: string, authorization: string, signal: AbortSign
   return result
 }
 
-export async function fetchHackerOneProgram(input: string): Promise<Team> {
-  const handle = normalizeHackerOneHandle(input)
-  const username = process.env.HACKERONE_API_USERNAME?.trim()
-  const token = process.env.HACKERONE_API_TOKEN?.trim()
-  if (!username || !token || username.includes(':')) throw new HackerOneError(503, 'HackerOne API credentials are not configured correctly on Majin.')
-  const authorization = `Basic ${Buffer.from(`${username}:${token}`).toString('base64')}`
-  const path = `/v1/hackers/programs/${handle}`
-  const signal = AbortSignal.timeout(20000)
+// A handle-shaped query can suggest an exact handle without reading the whole
+// catalog, but always requires a user's choice: display names may still collide.
+// Full-name lookup matches only after the complete bounded list is fetched.
+// https://api.hackerone.com/hacker-resources/#get-programs
+export async function resolveHackerOneProgram(input: unknown, signal = AbortSignal.timeout(20000)): Promise<HackerOneProgramLookup> {
+  if (typeof input !== 'string' || input.length > 2048 || /[\p{Cc}\p{Cf}]/u.test(input)) {
+    throw new HackerOneError(400, 'Enter a program name, handle or HTTPS HackerOne program URL.')
+  }
+  const query = input.trim().normalize('NFC')
+  if (query.startsWith('https://')) return { programHandle: normalizeHackerOneHandle(query) }
+  if (!query || query.length > 255 || !/[\p{L}\p{N}]/u.test(query) ||
+    /[<>\\/]/u.test(query) || /^[a-z][a-z0-9+.-]*:/i.test(query)) {
+    throw new HackerOneError(400, 'Enter a program name, handle or HTTPS HackerOne program URL.')
+  }
+  const authorization = apiAuthorization()
   const budget = { bytes: 0 }
-  const program = resource((await apiJson(new URL(path, API), authorization, signal, budget)).data, 'program')
+  if (/^[a-zA-Z0-9_-]{1,255}$/.test(query)) {
+    const handle = query.toLowerCase()
+    try {
+      const document = await apiJson(new URL(`/v1/hackers/programs/${handle}`, API), authorization, signal, budget)
+      const { candidate } = programCandidate(singleProgram(document))
+      if (candidate.handle !== handle) throw new HackerOneError(502, 'HackerOne returned a different program. No program was selected.')
+      return { candidates: [candidate] }
+    } catch (error) {
+      // Only a genuine upstream 404 permits a name search. In particular, a
+      // forbidden request is not retried merely because its public status is 404.
+      if (!(error instanceof HackerOneError) || error.upstreamStatus !== 404) throw error
+    }
+  }
+  const records = await collection('/v1/hackers/programs', authorization, signal, budget)
+  const ids = new Set<string>()
+  const handles = new Set<string>()
+  const programs = records.map(value => {
+    const { id, candidate } = programCandidate(value)
+    if (ids.has(id) || handles.has(candidate.handle)) {
+      throw new HackerOneError(502, 'HackerOne program results changed during pagination. Retry lookup or enter the exact program URL.')
+    }
+    ids.add(id)
+    handles.add(candidate.handle)
+    return candidate
+  }).sort((a, b) => a.name.localeCompare(b.name, 'en') || a.handle.localeCompare(b.handle, 'en'))
+  const needle = query.toLowerCase()
+  const exact = programs.filter(program => program.handle === needle || program.name.normalize('NFC').toLowerCase() === needle)
+  if (exact.length === 1) return { programHandle: exact[0].handle }
+  // Even a single partial match requires an explicit choice by the user.
+  return { candidates: exact.length ? exact : programs.filter(program =>
+    program.handle.includes(needle) || program.name.normalize('NFC').toLowerCase().includes(needle)) }
+}
+
+export async function fetchHackerOneProgram(input: string, signal = AbortSignal.timeout(20000)): Promise<Team> {
+  const handle = normalizeHackerOneHandle(input)
+  const authorization = apiAuthorization()
+  const path = `/v1/hackers/programs/${handle}`
+  const budget = { bytes: 0 }
+  const program = resource(singleProgram(await apiJson(new URL(path, API), authorization, signal, budget)), 'program')
   const attributes = program.attributes
   if (text(attributes.handle, true).toLowerCase() !== handle) throw new HackerOneError(502, 'HackerOne returned a different program. No scope was saved.')
   const policy = text(attributes.policy, true)
@@ -194,6 +267,7 @@ export function hackerOneMetadata(team: Team) {
     asset_count: team.assets.filter(asset => asset.eligible_for_submission && !asset.archived_at).length,
     excluded_asset_count: team.assets.filter(asset => !asset.eligible_for_submission && !asset.archived_at).length,
     confidentiality: 'private',
+    setup_plan: buildProgramSetupPlan(team),
     scope_snapshot: {
       schema_version: 1, sha256: team.sha256, fetched_at: team.fetched_at, policy: team.policy, assets: team.assets, exclusions: team.exclusions,
       source_urls: { program: `${API}/v1/hackers/programs/${team.handle}`, scopes: `${API}/v1/hackers/programs/${team.handle}/structured_scopes`, exclusions: `${API}/v1/hackers/programs/${team.handle}/scope_exclusions` },

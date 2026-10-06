@@ -4,19 +4,28 @@
 
 The historical sections below predate two migrations. Follow `README.md` and
 `docs/majin-backend.md` for the current architecture: vinext/React 19 on Cloudflare,
-Node 24 API plus SQLite on Majin, and loopback-only local debug login. Never widen
-debug access or add browser-visible service secrets. Do not modify Buzz or the
-scan-data database as part of console work. Preserve D1 and verified exports for
-recovery; never switch back to stale D1 after Majin has accepted new writes.
+local and transitional Majin Node 24 APIs sharing PostgreSQL's `console` schema,
+and loopback-only local debug login. Never widen debug access or add browser-visible
+service secrets. Do not modify Buzz or existing public bounty tables as part of
+console work. The console runtime has CRUD only in its schema plus the separately
+granted read-only `bastet.console_progress(text)` projection. Preserve SQLite/D1
+and verified exports for recovery; never revert to them after PG accepts new writes.
 Stage only task-related changes, not unrelated working-tree edits. Record release
 and live verification evidence in `NOTES.md`; validate before commit/push/deploy.
 
-Private HackerOne integration uses server-only credentials on Majin, bound to
-one console owner ID. Keep imports private/paused, preserve full scope and
+Private HackerOne integration uses server-only credentials on the local workstation,
+never Majin/Cloudflare/agents, bound to one console owner ID. Keep imports private/paused, preserve full scope and
 exclusions, and re-fetch/digest-check before save. Refresh must preview before
 acceptance with an atomic previous-digest guard. Never commit private program
 facts or fixtures. API snapshots do not verify separate announcements or grant
 permission to launch testing. Use synthetic program data in tests.
+
+Program-name resolution may search only the configured owner's accessible
+HackerOne catalog. Require an explicit choice for ambiguous/partial matches.
+Setup plans are deterministic proposals from eligible, non-archived scope
+assets and a fixed tool catalog, never commands from policy text. Keep app
+downloads, tool installation, device changes, infrastructure and testing behind
+separate approval; a planning result must never imply tools are installed.
 
 ## Important Reminder for AI Agents
 

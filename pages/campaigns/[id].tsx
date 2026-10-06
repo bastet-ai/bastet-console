@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Navbar from '../../src/components/Navbar'
 import HackerOneScopeSnapshot, { type HackerOneMetadata, type HackerOneScopeSnapshotData } from '../../src/components/HackerOneScopeSnapshot'
+import ProgramSetupPlan from '../../src/components/ProgramSetupPlan'
+import ProgramProgress from '../../src/components/ProgramProgress'
 import { type User, verifySession } from '../../src/lib/authClient'
 
 interface CampaignMember {
@@ -369,6 +371,8 @@ export default function CampaignDetail() {
             )}
           </div>
 
+          <ProgramProgress campaignId={campaign.id} />
+
           {/* Campaign Scope */}
           <div className="campaign-scope-section">
             <div className="scope-header">
@@ -416,13 +420,14 @@ export default function CampaignDetail() {
               <>
                 <p className="form-help">Checking for changes is read-only. Saving a changed snapshot pauses the campaign and requires a new scope review before testing. This is not a runner-enforced scope control.</p>
                 <p className="form-help">Manually review <a href={`https://hackerone.com/${encodeURIComponent(campaign.hackerone_handle)}/invite_only`} target="_blank" rel="noopener noreferrer">private-program rules</a>, <a href={`https://hackerone.com/${encodeURIComponent(campaign.hackerone_handle)}/updates`} target="_blank" rel="noopener noreferrer">updates and announcements</a>, and <a href="https://docs.hackerone.com/en/articles/8494488-core-ineligible-findings" target="_blank" rel="noopener noreferrer">core ineligible findings</a>. These separate pages are not verified by an API snapshot.</p>
-                {campaign.hackerone_metadata?.scope_snapshot ? <HackerOneScopeSnapshot snapshot={campaign.hackerone_metadata.scope_snapshot} /> : <div className="import-info"><p>This legacy import has no verified full snapshot. Check HackerOne for changes to review and save one before testing.</p>{campaign.rules_of_engagement && <pre className="hackerone-policy-text">{campaign.rules_of_engagement}</pre>}</div>}
+                {campaign.hackerone_metadata?.scope_snapshot ? <><ProgramSetupPlan snapshot={campaign.hackerone_metadata.scope_snapshot} /><HackerOneScopeSnapshot snapshot={campaign.hackerone_metadata.scope_snapshot} /></> : <div className="import-info"><p>This legacy import has no verified full snapshot. Check HackerOne for changes to review and save one before testing.</p>{campaign.rules_of_engagement && <pre className="hackerone-policy-text">{campaign.rules_of_engagement}</pre>}</div>}
               </>
             )}
             {syncPreview && (
               <section className="hackerone-sync-preview" aria-label="Review HackerOne changes">
                 <h3>{syncPreview.changed ? 'Policy or scope changed' : 'No policy or scope changes detected'}</h3>
                 <p>{syncPreview.changed ? 'Review the latest complete snapshot below. Accepting it will pause this campaign; it will not start or resume testing.' : 'You can refresh the saved verification timestamp after reviewing this snapshot.'}</p>
+                <ProgramSetupPlan snapshot={syncPreview.scope_snapshot} />
                 <HackerOneScopeSnapshot snapshot={syncPreview.scope_snapshot} />
                 <label className="hackerone-review-check">
                   <input type="checkbox" checked={syncReviewed} disabled={syncing} onChange={event => setSyncReviewed(event.target.checked)} />
