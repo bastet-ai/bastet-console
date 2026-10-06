@@ -23,6 +23,32 @@
   but not recoverable from the site; user credential provisioning is pending.
 - Existing unrelated `supabase/.temp/cli-latest` edit remains untouched.
 
+### Release verification
+
+- Implementation commit `1be9c66462422c6b6a14e49cb84b3dfceea7d773` pushed.
+- Cloudflare dashboard still shows Git repository **Connect** (no auto-build
+  integration); manually deployed existing generated config. Worker version
+  `99c64bc9-a3b9-41b5-beb4-aded61c5f398` serves the updated onboarding interface.
+- Majin image `bastet-console-api:1be9c66` is healthy. Compiled bundle hash
+  `bf826fb83eb0a51f2c527494ca9d1181a54743ae1d4689d46c43e09ec640ec81`
+  matches locally and in `/app/api.cjs`. Startup SQLite backup verified.
+- Only the console API service was recreated. Previous release configuration
+  is retained in private `release-before-1be9c66.env`; prior image retained.
+- Production browser confirms signed-in campaign listing and new private/public
+  HackerOne import setup guidance, with import disabled while unconfigured.
+- Live checks pass: local debug login and shared campaign reads, authenticated
+  integration status; anonymous integration GET/POST 401; direct Majin 401;
+  production debug 404; local debug session rejected by production.
+- Local dev server restarted on **127.0.0.1:5173** only. Brave blocks local
+  navigation with ERR_BLOCKED_BY_CLIENT; no browser protection was bypassed.
+  Local HTTP/API checks pass; rendered production browser and synthetic local
+  interaction tests cover the UI pending user's local-browser access.
+- Final focused suite: 30 HackerOne tests including archived-asset regression;
+  initial full suite 45 passed plus the added UI test; all typechecks pass.
+- Credential gate remains: personal tokens cannot be revealed again; rotating
+  requires user action. Prepared ignored mode-600 `.env.hackerone.local` for
+  private provisioning. No token installed and no real program imported yet.
+
 ## 2026-10-05: Majin API and local debug implementation
 
 - User selected moving the API/database to Majin, shared by Cloudflare and local UI.
