@@ -1,3 +1,4 @@
 *
 !api.cjs
+!inventory-sync.cjs
 !Dockerfile

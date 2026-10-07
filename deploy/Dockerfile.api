@@ -2,7 +2,8 @@ FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733cee
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 CONSOLE_DB_PATH=/data/console.sqlite
 WORKDIR /app
 COPY api.cjs ./api.cjs
-RUN chmod 0444 /app/api.cjs
+COPY inventory-sync.cjs ./inventory-sync.cjs
+RUN chmod 0444 /app/api.cjs /app/inventory-sync.cjs
 USER node
 EXPOSE 3000
 CMD ["node", "api.cjs"]

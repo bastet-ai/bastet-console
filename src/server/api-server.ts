@@ -19,11 +19,14 @@ import nodes from '../../pages/api/nodes/index'
 import node from '../../pages/api/nodes/[id]'
 import hackerone from '../../pages/api/integrations/hackerone'
 import websocket from '../../pages/api/ws/nodes'
+import inventoryHandler from '../../pages/api/inventory'
+import { InventoryStore, pgStorage } from './inventory/store'
 import { dirname, join } from 'node:path'
 import { snapshotDatabase } from './backup'
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => unknown
 const routes: [RegExp, Handler][] = [
+  [/^\/api\/inventory$/, inventoryHandler],
   [/^\/api\/auth\/google$/, google], [/^\/api\/auth\/verify$/, verify], [/^\/api\/auth\/logout$/, logout],
   [/^\/api\/campaigns$/, campaigns], [/^\/api\/campaigns\/activities$/, activities], [/^\/api\/campaigns\/sync$/, sync],
   [/^\/api\/campaigns\/([^/]+)\/progress$/, progress],
@@ -34,7 +37,7 @@ const routes: [RegExp, Handler][] = [
 const matchesSecret = (actual: unknown, expected: string) => typeof actual === 'string' &&
   timingSafeEqual(createHash('sha256').update(actual).digest(), createHash('sha256').update(expected).digest())
 
-export function createApiServer(options: { database: ConsoleDatabase; serviceKey: string; debugKey: string; debugUserId: string; storageLabel?: string }) {
+export function createApiServer(options: { database: ConsoleDatabase; serviceKey: string; debugKey: string; debugUserId: string; storageLabel?: string; inventory?: InventoryStore }) {
   if (options.serviceKey.length < 32 || options.debugKey.length < 32 || options.serviceKey === options.debugKey) throw new Error('Invalid service credentials')
   return createServer(async (incoming: IncomingMessage, outgoing: ServerResponse) => {
     const res = outgoing as NextApiResponse
@@ -65,7 +68,7 @@ export function createApiServer(options: { database: ConsoleDatabase; serviceKey
       const id = route[0].exec(url.pathname)?.[1]
       if (id) req.query.id = decodeURIComponent(id)
       req.body = size ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}
-      await requestContext.run({ database: options.database, ...(suppliedDebug ? { debugUserId: options.debugUserId } : {}) }, () => route[1](req, res))
+      await requestContext.run({ database: options.database, inventory: options.inventory, ...(suppliedDebug ? { debugUserId: options.debugUserId } : {}) }, () => route[1](req, res))
     } catch (error) {
       if (!res.headersSent) res.status(error instanceof SyntaxError || error instanceof URIError ? 400 : 500).json({ error: 'Request failed' })
       else res.end()
@@ -103,7 +106,8 @@ export async function startApiServer() {
   const backupTimer = storage instanceof SQLiteDatabase ? setInterval(() => { void snapshot() }, 24 * 60 * 60 * 1000) : undefined
   backupTimer?.unref()
   const database = new ConsoleDatabase(storage)
-  const server = createApiServer({ database, serviceKey: process.env.CONSOLE_SERVICE_KEY!, debugKey: process.env.CONSOLE_DEBUG_KEY!, debugUserId: process.env.CONSOLE_DEBUG_USER_ID!, storageLabel: mode === 'postgres' ? 'postgres' : 'majin-sqlite' })
+  const inventory = storage instanceof PostgresDatabase ? new InventoryStore(pgStorage(storage.pool)) : undefined
+  const server = createApiServer({ database, inventory, serviceKey: process.env.CONSOLE_SERVICE_KEY!, debugKey: process.env.CONSOLE_DEBUG_KEY!, debugUserId: process.env.CONSOLE_DEBUG_USER_ID!, storageLabel: mode === 'postgres' ? 'postgres' : 'majin-sqlite' })
   server.requestTimeout = 30000
   server.headersTimeout = 10000
   server.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => console.log('Console API ready'))

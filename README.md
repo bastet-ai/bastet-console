@@ -1,5 +1,9 @@
 # Bastet Console
 
+Stack inventory, version history, advisory matching and release research are
+documented in [docs/inventory.md](docs/inventory.md). The optional inventory module
+uses an additive PostgreSQL schema and scoped HTTP worker tokens.
+
 The Bastet management console serves its frontend from Cloudflare Workers with
 vinext (Pages Router). Local and hosted Node APIs share the `console` schema in
 Majin's PostgreSQL database. The hosted API remains on Majin as a transitional

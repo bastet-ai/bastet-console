@@ -53,7 +53,7 @@ The production console never exposes `/api/auth/debug`.
 
 Run `npm ci` under Node 24, then `npm run build:api`. The helper prints a fresh
 ignored Docker context and content-derived `release` tag, records Git revision/
-dirty state and SHA-256 hashes, and copies only the API bundle, Dockerfile and
+dirty state and SHA-256 hashes, and copies only the API and inventory-sync bundles, Dockerfile and
 strict allowlist into that context. Commit reviewed source before a production
 package; record any deliberately preserved unrelated dirty files separately.
 

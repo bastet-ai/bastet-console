@@ -7,7 +7,7 @@ The historical sections below predate two migrations. Follow `README.md` and
 local and transitional Majin Node 24 APIs sharing PostgreSQL's `console` schema,
 and loopback-only local debug login. Never widen debug access or add browser-visible
 service secrets. Do not modify Buzz or existing public bounty tables as part of
-console work. The console runtime has CRUD only in its schema plus the separately
+console work. The console runtime has CRUD only in its console and additive inventory schemas plus the separately
 granted read-only `bastet.console_progress(text)` projection. Preserve SQLite/D1
 and verified exports for recovery; never revert to them after PG accepts new writes.
 Stage only task-related changes, not unrelated working-tree edits. Record release

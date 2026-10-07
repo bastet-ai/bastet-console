@@ -242,3 +242,33 @@
 - Local server left running via `npm run dev:debug`; browser left signed in on
   the dashboard. Restarting Vite invalidates local debug sessions (sign in again).
 - Existing unrelated `supabase/.temp/cli-latest` edit remains untouched/uncommitted.
+
+## 2026-10-07 — Stack inventory and release research
+
+- Added the isolated PostgreSQL `inventory` schema: explicit deployments/assets,
+  component identities and releases, append-only fingerprints/advisory revisions/
+  assessment history/reviews/events, scoped worker tokens, and leased research
+  jobs. No public bounty/Buzz schema changes or live target probes.
+- Added portfolio inventory UI, release counts, version history, conservative OSV
+  matching, review invalidation, change alerts, scoped event feed, recon JSONL
+  importer, and a source-research supervisor with a configurable harness contract.
+  The existing external swarm launcher's source is unavailable; no claim is made
+  that its agents have been connected or launched.
+- OSV polling is five minutes between completed passes, with 15-second UI refresh.
+  Public package lookup is explicit. Unknown/stale/conflicting observations remain
+  triage leads; version matches never automatically become confirmed findings.
+- Validation: typecheck; 102 passing tests (two existing external-PG tests skipped
+  without a disposable server); 13 focused inventory checks using PGlite PostgreSQL,
+  actual HTTP requests and a synthetic harness process; 6 SQLite tests (one
+  D1-specific test skipped); 12 migration checks; production frontend/API builds;
+  built Worker HTTP suite; desktop/mobile Chromium rendering and research form
+  submission. History pagination covers sub-millisecond PostgreSQL timestamps.
+- Production dependency audit reports 12 high findings. A fresh audit of the
+  unchanged main-branch lockfile reports the same 12 packages; none were introduced
+  by this feature. Existing audit/Socket gates remain enabled.
+- Production activation is **not performed**: this workspace has no Majin SSH/DB
+  credentials or Cloudflare deployment identity. Migration, worker configuration,
+  backup/preflight, activation and rollback are documented in `docs/inventory.md`.
+  A real research-harness executable/model identity must also be provisioned before
+  research jobs can execute. Source publication is recorded by this Git commit;
+  production image/Worker identifiers must be added only after an observed rollout.

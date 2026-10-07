@@ -25,6 +25,24 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+  inventory-sync:
+    profiles: [inventory]
+    image: bastet-console-api:${CONSOLE_RELEASE:?set CONSOLE_RELEASE}
+    command: [node, inventory-sync.cjs, --watch]
+    restart: unless-stopped
+    env_file: /home/pierce/gitops-secrets/console/inventory.env
+    volumes:
+      - /home/pierce/gitops-secrets/console/postgres-ca.crt:/run/console-postgres/ca.crt:ro
+    networks: [console_db]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
 networks:
   buzz:
     external: true
