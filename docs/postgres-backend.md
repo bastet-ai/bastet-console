@@ -100,12 +100,12 @@ routine is no longer the live backup. Keep periodic restore drills and off-host
 copies as operational requirements; a local disk backup does not cover host loss.
 
 Local services are `bastet-console-api.service`, `bastet-console-debug.service`, and
-`bastet-console-db-tunnel.service` in the user's systemd manager. The persistent
-unit files in `deploy/local/` are installed and enabled for future user sessions,
-with restart supervision. No global default Node runtime was changed. Workstation
-linger is not enabled: they start when the user's manager starts at login, not
-necessarily before anyone signs in after reboot. The tunnel is 127.0.0.1:6544 to
-Majin's 127.0.0.1:5434. Restarting the
+`bastet-console-db-tunnel.service` in the user's systemd manager. The SSH tunnel
+is manual-only: it has no install target or restart loop, and the API unit does not
+start it as a dependency. On this workstation the tunnel unit is normally masked;
+unmask and start it only for an explicitly requested Majin session, then stop and
+mask it again. No Bastet unit may request the user's SSH key during login or boot.
+The tunnel is 127.0.0.1:6544 to Majin's 127.0.0.1:5434. Restarting the
 debug service invalidates local sessions; sign in again. Keep all listeners on
 loopback. The private CA/certificate require renewal before certificate expiry.
 

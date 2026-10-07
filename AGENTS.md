@@ -12,6 +12,10 @@ granted read-only `bastet.console_progress(text)` projection. Preserve SQLite/D1
 and verified exports for recovery; never revert to them after PG accepts new writes.
 Stage only task-related changes, not unrelated working-tree edits. Record release
 and live verification evidence in `NOTES.md`; validate before commit/push/deploy.
+Never open SSH to Majin or another Bastet host, start an SSH tunnel, use the
+user's SSH agent/key, or configure an SSH-backed service to start automatically
+unless the user explicitly requests that connection in the current turn. Keep
+workstation tunnel units disabled and masked between requested sessions.
 
 Private HackerOne integration uses server-only credentials on the local workstation,
 never Majin/Cloudflare/agents, bound to one console owner ID. Keep imports private/paused, preserve full scope and

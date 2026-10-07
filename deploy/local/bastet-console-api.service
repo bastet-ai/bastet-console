@@ -1,7 +1,7 @@
 [Unit]
 Description=Bastet local PostgreSQL-backed API
-Wants=bastet-console-db-tunnel.service
-After=bastet-console-db-tunnel.service
+# The SSH tunnel is deliberately manual. Starting this API must never request
+# the user's SSH key or start bastet-console-db-tunnel.service implicitly.
 
 [Service]
 WorkingDirectory=/home/pierce/projects/bastet-console
