@@ -40,7 +40,12 @@
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "vite build",
     "start:vinext": "wrangler dev --config dist/bastet_console/wrangler.json",
-    "deploy:vinext": "wrangler deploy --config dist/bastet_console/wrangler.json"
+    "deploy:vinext": "wrangler deploy --config dist/bastet_console/wrangler.json",
+    "inventory:migrate": "node --import tsx scripts/migrate-inventory.ts",
+    "inventory:sync": "node --import tsx scripts/serve-inventory-sync.ts",
+    "inventory:import-recon": "node --import tsx scripts/import-recon-inventory.ts",
+    "inventory:research": "node --import tsx scripts/serve-inventory-research.ts",
+    "test:inventory-ui": "node tests/inventory-ui.mjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -54,11 +59,13 @@
     "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "semver": "7.8.5",
     "vinext": "1.0.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.62.3",
     "@cloudflare/workers-types": "5.20260930.2",
+    "@electric-sql/pglite": "0.5.8",
     "@playwright/test": "^1.56.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -68,6 +75,7 @@
     "@types/pg": "8.23.1",
     "@types/react": "^18.3.26",
     "@types/react-dom": "^18.3.7",
+    "@types/semver": "7.7.1",
     "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "5.2.0",

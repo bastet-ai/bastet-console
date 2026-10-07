@@ -22,6 +22,7 @@ export default function Navbar({ user, onSignOut, onSignIn, signInLabel = 'Sign 
           <a href="#administration">Administration</a>
           {user && <a href="/dashboard">Dashboard</a>}
           {user && <a href="/campaigns">Campaigns</a>}
+          {user && <a href="/inventory">Stack inventory</a>}
         </nav>
         
         {user ? (

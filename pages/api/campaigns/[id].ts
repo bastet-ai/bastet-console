@@ -36,7 +36,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const campaign = await db.updateCampaign(userId, id, value)
     return campaign ? res.json({ success: true, campaign }) : res.status(403).json({ error: 'Access denied' })
-  } catch {
+  } catch (error) {
+    if (req.method==='DELETE' && (error as {code?:string})?.code==='23503') return res.status(409).json({error:'This campaign has retained inventory evidence. Archive the campaign to preserve its history.'})
     return apiFailure(res, 'campaign')
   }
 }

@@ -16,14 +16,20 @@ await build({
   absWorkingDir: root, entryPoints: ['scripts/serve-api.ts'], outfile: join(context, 'api.cjs'),
   bundle: true, platform: 'node', target: 'node24', format: 'cjs', external: ['pg-native'], logLevel: 'warning',
 })
+await build({
+  absWorkingDir: root, entryPoints: ['scripts/serve-inventory-sync.ts'], outfile: join(context, 'inventory-sync.cjs'),
+  bundle: true, platform: 'node', target: 'node24', format: 'cjs', external: ['pg-native'], logLevel: 'warning',
+})
 copyFileSync(join(root, 'deploy/Dockerfile.api'), join(context, 'Dockerfile'))
 copyFileSync(join(root, 'deploy/.dockerignore.api'), join(context, '.dockerignore'))
-for (const name of ['api.cjs', 'Dockerfile', '.dockerignore']) chmodSync(join(context, name), 0o444)
+for (const name of ['api.cjs', 'inventory-sync.cjs', 'Dockerfile', '.dockerignore']) chmodSync(join(context, name), 0o444)
 const bundle = readFileSync(join(context, 'api.cjs')), dockerfile = readFileSync(join(context, 'Dockerfile'))
+const syncBundle = readFileSync(join(context, 'inventory-sync.cjs'))
 const sha256 = buffer => createHash('sha256').update(buffer).digest('hex')
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 const manifest = {
-  schema: 1, release: `pg-${createHash('sha256').update(bundle).update(dockerfile).digest('hex').slice(0, 12)}`,
+  schema: 2, release: `pg-${createHash('sha256').update(bundle).update(syncBundle).update(dockerfile).digest('hex').slice(0, 12)}`,
+  inventorySyncSha256: sha256(syncBundle),
   bundleSha256: sha256(bundle), dockerfileSha256: sha256(dockerfile), sourceCommit: git(['rev-parse', 'HEAD']),
   dirtyTree: Boolean(git(['status', '--porcelain'])), esbuildVersion, runtime: 'node24', format: 'cjs',
 }

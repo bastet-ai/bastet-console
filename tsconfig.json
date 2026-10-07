@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "ES2022"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "ES2022"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -20,9 +24,32 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "worker-configuration.d.ts", "pages/**/*.ts", "pages/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "worker/**/*.ts", "scripts/local-debug.ts", "scripts/serve-api.ts", "vite.config.ts"],
-  "exclude": ["node_modules", "tests", "**/*.test.*", "**/*.spec.*"]
+  "include": [
+    "next-env.d.ts",
+    "worker-configuration.d.ts",
+    "pages/**/*.ts",
+    "pages/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "worker/**/*.ts",
+    "scripts/local-debug.ts",
+    "scripts/serve-api.ts",
+    "vite.config.ts",
+    "scripts/inventory-sync.ts",
+    "scripts/serve-inventory-sync.ts",
+    "scripts/serve-inventory-research.ts",
+    "scripts/migrate-inventory.ts",
+    "scripts/import-recon-inventory.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests",
+    "**/*.test.*",
+    "**/*.spec.*"
+  ]
 }
