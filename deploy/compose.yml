@@ -33,7 +33,7 @@ services:
     env_file: /home/pierce/gitops-secrets/console/inventory.env
     volumes:
       - /home/pierce/gitops-secrets/console/postgres-ca.crt:/run/console-postgres/ca.crt:ro
-    networks: [console_db]
+    networks: [console_db, inventory_egress]
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -50,3 +50,5 @@ networks:
   console_db:
     external: true
     name: bastet-console-db
+  # The database network is internal; the synchronizer needs OSV HTTPS egress.
+  inventory_egress: {}

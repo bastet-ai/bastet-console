@@ -272,3 +272,85 @@
   A real research-harness executable/model identity must also be provisioned before
   research jobs can execute. Source publication is recorded by this Git commit;
   production image/Worker identifiers must be added only after an observed rollout.
+
+## 2026-10-07 — Majin stack-inventory production activation
+
+- Deployed source `ffb692e6e873ac76a136912a6f4b22790a592ec8` using Node
+  24.21.0 for validation/packaging. Passed `npm ci`, typecheck, 102 tests
+  (2 external-PG skips), 12 migration tests, 6 SQLite tests (1 D1 skip),
+  production frontend build and built Worker HTTP test. `npm ci` reported
+  48 dependency vulnerabilities (7 moderate, 41 high); no dependency changes.
+- Before migration, the existing Majin native backup script reported
+  `console_postgres_backup_verified`, archive-list validation true, full restore
+  false. Database and role dump SHA-256 checks both returned OK for stamp
+  `20261007T221812.738639877Z` in
+  `/home/pierce/bastet-console-data/postgres-backups`; manifest mode was 600.
+  No full restore drill or new off-host copy was performed in this session.
+  Existing PostgreSQL/SQLite/D1 recovery material remains retained.
+- Migration ran only through `npm run inventory:migrate`, using a protected
+  on-host environment and the verified CA on `bastet-console-db`. It reported
+  `inventory_migration_applied`, version 1. Observed schema owner is
+  `console_owner`, with all 18 inventory tables owned by that NOLOGIN role.
+  Temporary `console_migrator` membership and owner CREATE privilege were revoked;
+  login is disabled and its password is NULL. Runtime schema USAGE/sequence
+  privileges passed; schema CREATE is denied. Append-only tables have only
+  INSERT/SELECT, and schema_version only SELECT. Public (7 tables) and console
+  (10 tables) lists compared identical before/after. No bounty/Buzz DDL or drops.
+- Initial migration container could not read owner-only source files and exited
+  before executing the runner. Confirmed inventory absent and temporary grants
+  revoked, then used UID 1000 and reran successfully. All credentials remained
+  in mode-600 on-host files; worker inventory.env contains only its database URL
+  and CA path, with no user/service/debug/Google/HackerOne credentials.
+- Protected build context was `tmp/api-build-j5eqD8`; only that context was
+  transported and used for Docker build. Immutable image
+  `bastet-console-api:pg-aa31b4426c56` has API SHA-256
+  `d0a651d6861a1e2a2ab8aacedee3afcee426ae39160825bd9a5495c5597c674c`
+  and synchronizer SHA-256
+  `325d7b77774ec72f29e36df195c95e6ec9fd7f6d33171e3d5d85e07eb5989d27`;
+  both matched the live container. Runtime remains pinned Node 24.19.0.
+  Release manifest is retained on Majin in
+  `/home/pierce/bastet-console-inventory-context-20261007/release.json`.
+  Build dirtyTree=true reflected the unrelated untracked
+  `docs/DEPLOY-BRIEF-2026-10-07.md`, which was not packaged or staged.
+- Isolated preflight had no published ports, was healthy, and returned 200 for
+  health, auth verification and authenticated campaign reads. Inventory GET
+  returned configured=false before migration and true afterward. Preflight
+  was stopped after activation. Live `bastet-console-api-1` is running/healthy;
+  `bastet-console-inventory-sync-1` is running with zero restarts, both using
+  `pg-aa31b4426c56`, with no published ports. The synchronizer has no Docker
+  healthcheck; its observed database worker-health record is healthy.
+- Required Compose correction: the database network is internal=true, and OSV
+  egress initially failed. Added a separate `inventory_egress` network only to
+  inventory-sync; retained internal DB isolation. Observed OSV query HTTP 200,
+  `inventory_sync_completed`, and worker health `1 package queries; 0 failures`
+  with a recorded success time. Compose configuration validation passed.
+  Activation uses the reviewed template at
+  `/home/pierce/bastet-console-inventory-source-20261007/deploy/compose.yml`
+  with `--env-file /home/pierce/gitops-secrets/console/.env --profile inventory`.
+  An initial attempt to merge both full templates failed Compose validation
+  before changing traffic; activation then used the single updated template.
+- Live authenticated HTTPS checks through Majin/Caddy returned 200 for health,
+  campaigns and inventory (configured=true); anonymous inventory returned 401.
+  Synthetic private campaign `5aa95578-f4e8-42bd-ba0a-a0d6d8bf131f` used only
+  example.test fixture URLs and public npm/next package identity. Fingerprint
+  replay returned the same ID without extra events; history contained one record;
+  conflicting replay returned 409. OSV produced 73 assessments including
+  affected_version. Research claim and synthetic inconclusive completion passed,
+  with no harness/source analysis or live-target testing. The campaign is archived
+  and both synthetic worker tokens are revoked. A verification GET hit an idle
+  socket closure after synchronous OSV processing; a fresh-connection continuation
+  passed while live API health remained healthy.
+- Contract discrepancy: the revoked research token is denied with HTTP **403**,
+  not the requested **401**. Observed denial matches this release's capability
+  verifier; no application-code fix was made during deployment.
+- Cloudflare frontend was **not deployed**: local `npx wrangler whoami` reported
+  "You are not authenticated." No login, temporary account or deploy was attempted.
+  Hosted /inventory UI and signed-in frontend campaign isolation were not verified.
+  Research harness/model identity and recon mappings were not provisioned.
+- Rollback ready: prior image `bastet-console-api:pg-f0dfc425387b` remains available
+  (image ID `sha256:a37e741e0f926bca19f023250b7d11fe6fb0a34c2249fe4b6c83a45db403df74`).
+  Prior release env is preserved at
+  `/home/pierce/gitops-secrets/console/release-before-inventory-20261007.env`.
+  Stop inventory-sync using the inventory template, restore that protected release
+  env to .env, then run the original GitOps console Compose `up -d api`.
+  Retain inventory evidence/schema; never revert PostgreSQL to SQLite/D1.
