@@ -119,6 +119,23 @@ The UI refreshes every 30 seconds and shows observed versus desired worker state
 recent tasks and saved reports. Agent Markdown is escaped text, never executable
 HTML. This endpoint cannot launch, resume or reconfigure agents.
 
+## Guarded per-program run control
+
+The campaign detail page shows the orchestration run status separately from the
+console campaign-record status. Owners and managers can request **Pause program**
+or **Resume program** only when a linked run exists and the dedicated
+`bastet.console_control(text,text,text)` function is installed and executable by
+the console service role. `POST /api/campaigns/:id/control` derives the actor from
+the authenticated session, never from the request body, and calls that one
+allowlisted function. The console gets no direct access to orchestration tables.
+The function's eligibility, approval and hold checks remain authoritative for
+resume; a blocked response is shown to the operator, not retried or converted
+into a campaign-record status change. If the function is missing, the controls
+are disabled and the API returns 503. A successful control response reports a
+requested run transition, not proof that workers have started or stopped; use
+the next progress refresh to observe agents. The separate campaign-record
+status is intentionally not changed by this control endpoint.
+
 ## Validation
 
 Run `node --import tsx tests/postgres.test.ts` for configuration and SQL tests.

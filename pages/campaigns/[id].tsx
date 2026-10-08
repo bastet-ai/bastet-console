@@ -342,7 +342,7 @@ export default function CampaignDetail() {
                 </Link>
                 <div className="campaign-header-badges">
                   <span className={`badge ${getStatusBadgeColor(campaign.status)}`}>
-                    {campaign.status}
+                    Campaign record: {campaign.status}
                   </span>
                   <span className={`badge ${getRoleBadgeColor(campaign.userRole)}`}>
                     {campaign.userRole}
@@ -371,7 +371,7 @@ export default function CampaignDetail() {
             )}
           </div>
 
-          <ProgramProgress campaignId={campaign.id} />
+          <ProgramProgress key={campaign.id} campaignId={campaign.id} campaignName={campaign.name} canManage={Boolean(canManageCampaign())} />
 
           {/* Campaign Scope */}
           <div className="campaign-scope-section">
@@ -496,7 +496,7 @@ export default function CampaignDetail() {
                     <h3 className="overview-card-title">Campaign Information</h3>
                     <div className="overview-card-content">
                       <div className="info-row">
-                        <span className="info-label">Status:</span>
+                        <span className="info-label">Campaign record status:</span>
                         <span className={`badge ${getStatusBadgeColor(campaign.status)}`}>
                           {campaign.status}
                         </span>

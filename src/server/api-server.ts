@@ -13,6 +13,7 @@ import campaigns from '../../pages/api/campaigns/index'
 import campaign from '../../pages/api/campaigns/[id]'
 import members from '../../pages/api/campaigns/[id]/members'
 import progress from '../../pages/api/campaigns/[id]/progress'
+import control from '../../pages/api/campaigns/[id]/control'
 import activities from '../../pages/api/campaigns/activities'
 import sync from '../../pages/api/campaigns/sync'
 import nodes from '../../pages/api/nodes/index'
@@ -30,6 +31,7 @@ const routes: [RegExp, Handler][] = [
   [/^\/api\/auth\/google$/, google], [/^\/api\/auth\/verify$/, verify], [/^\/api\/auth\/logout$/, logout],
   [/^\/api\/campaigns$/, campaigns], [/^\/api\/campaigns\/activities$/, activities], [/^\/api\/campaigns\/sync$/, sync],
   [/^\/api\/campaigns\/([^/]+)\/progress$/, progress],
+  [/^\/api\/campaigns\/([^/]+)\/control$/, control],
   [/^\/api\/campaigns\/([^/]+)\/members$/, members], [/^\/api\/campaigns\/([^/]+)$/, campaign],
   [/^\/api\/nodes$/, nodes], [/^\/api\/nodes\/([^/]+)$/, node],
   [/^\/api\/integrations\/hackerone$/, hackerone], [/^\/api\/ws\/nodes$/, websocket],

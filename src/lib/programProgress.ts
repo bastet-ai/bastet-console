@@ -20,5 +20,16 @@ export interface ProgramProgress {
 
 export interface ProgramProgressResponse {
   configured: boolean
+  control_available: boolean
   progress: ProgramProgress | null
+}
+
+export type ProgramControlAction = 'pause' | 'resume'
+
+export interface ProgramControlResult {
+  ok: boolean
+  action: ProgramControlAction
+  status: string
+  changed?: boolean
+  reason?: 'eligibility_refresh_required' | 'operator_hold' | 'agent_hold' | 'not_continuous' | 'scope_mismatch' | 'run_not_controllable'
 }
