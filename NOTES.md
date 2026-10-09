@@ -1,5 +1,25 @@
 # Console migration evidence
 
+## 2026-10-08: Cloudflare frontend rollout (inventory UI) — Dean-authorized
+
+- Device OAuth (`wrangler login --device`) completed by Dean; Bastet performed the
+  rollout on main `cc31cc9`+ (inventory feature `ffb692e` + rollout record
+  `095c42e`). `wrangler whoami` confirmed authenticated with Workers edit perms.
+- Validation observed: `npm run test:worker` 1 pass / 0 fail; `npm run build`
+  clean, emitted `inventory-*.js` chunk; `npm run deploy` uploaded and deployed.
+- Version ID observed: `527b6ebd-23e0-40ef-af4b-be8fef5bb82b`; triggers
+  `bastet-console.bcrt43.workers.dev` + custom domain console.bastet.ai.
+- Live checks (unauthenticated edge): `/` 200; `/inventory` 200 serving the app
+  shell with Sign-in gate and inventory content markers; `/api/inventory` 401
+  without credentials (auth wall held). Signed-in UI campaign isolation NOT
+  personally verified by Bastet (owner browser session required).
+- Cloudflare skills/MCP page fetched per Dean's instruction and reviewed; its
+  prescribed steps (Claude-Code plugin install / global `npx skills add`,
+  MCP registration, optional `cf` CLI) are agent-environment changes outside
+  this repo task and not required for the deploy; not installed. `wrangler`
+  path completed the job. (If Dean wants the MCP server registered for future
+  Cloudflare work, say so.)
+
 ## 2026-10-06: Review publication and live verification
 
 - Implementation commit `2250fb730af7514dcb7618363d7f36402867eba8` is published on
