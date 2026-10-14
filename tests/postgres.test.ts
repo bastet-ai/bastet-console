@@ -66,6 +66,34 @@ test('PostgreSQL config pins schema/options and only permits verified TLS or lit
   assert.deepEqual(normalizePostgresRow({ value: 'text' }, [{ name: 'value', dataTypeID: 3802 }]), { value: '"text"' })
 })
 
+test('PostgreSQL transaction binds every statement to one client and rolls back on failure', async () => {
+  const operations: string[] = []
+  const client = {
+    async query(sql: string, values: unknown[] = []) {
+      operations.push(`${sql}:${values.join(',')}`)
+      return { rows: sql.startsWith('SELECT') ? [{ marker: values[0] }] : [], fields: [], rowCount: 1 }
+    },
+    release(broken?: boolean) { operations.push(`release:${Boolean(broken)}`) },
+  }
+  const storage = Object.create(PostgresDatabase.prototype) as PostgresDatabase
+  Object.defineProperty(storage, 'pool', { value: {
+    connect: async () => client,
+    query: async () => { throw new Error('A transaction escaped its client') },
+  } })
+  const result = await storage.transaction(async db => {
+    assert.deepEqual(await db.prepare('SELECT ? AS marker').bind('synthetic').first(), { marker: 'synthetic' })
+    return 'committed'
+  })
+  assert.equal(result, 'committed')
+  assert.deepEqual(operations, ['BEGIN:', 'SELECT $1 AS marker:synthetic', 'COMMIT:', 'release:false'])
+  operations.length = 0
+  await assert.rejects(storage.transaction(async db => {
+    await db.prepare('UPDATE campaigns SET status = ?').bind('paused').run()
+    throw new Error('Synthetic campaign update failed')
+  }), /Synthetic campaign update failed/)
+  assert.deepEqual(operations, ['BEGIN:', 'UPDATE campaigns SET status = $1:paused', 'ROLLBACK:', 'release:false'])
+})
+
 test('local debug accepts a literal loopback API but rejects plaintext external backends', () => {
   const settings = { CONSOLE_SERVICE_KEY: 'synthetic-service', CONSOLE_DEBUG_KEY: 'synthetic-debug' }
   assert.doesNotThrow(() => debugMiddleware({ ...settings, CONSOLE_API_ORIGIN: 'http://127.0.0.1:3000' }, 5173))

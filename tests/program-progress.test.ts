@@ -125,6 +125,11 @@ test('progress rendering preserves report text without activating HTML, links or
     agents: [{ id: 'a', name: '<script>alert(1)</script>', template: 'recon', role: 'worker', desired_state: 'running', observed_state: 'pending', last_seen: null, model_calls: 0, model_call_limit: 5 }],
     tasks: [{ id: 't', kind: 'passive-recon', state: 'completed', attempt: 1, result: { note: '<img src=x onerror=alert(1)>' }, error: null, created_at: '2026-01-01T00:00:00Z', completed_at: null }],
     reports: [{ id: 'r', title: 'Synthetic report', markdown: '# Report\n<script>alert(1)</script>\n[link](javascript:alert(1))', scope_hash: 'b'.repeat(64), created_at: '2026-01-01T00:00:00Z' }],
+    candidate_count: 1, pending_candidate_count: 1,
+    candidates: [{ id: 'c', generation: 2, task_id: 't', task_kind: 'source-analysis', task_scope_hash: 'a'.repeat(64),
+      title: '<img src=x onerror=alert(2)>', summary: 'A hypothesis for independent review', severity: 'unknown',
+      evidence: { result_pointer: '/repositories/0/signals/0', hypothesis: '<script>alert(3)</script>' },
+      status: 'needs_review', created_at: '2026-01-01T00:00:00Z', reviewed_at: null, review_note: null }],
   }
   const html = renderToStaticMarkup(createElement(ProgramProgressView, { progress: fixture }))
   assert.match(html, /running<!-- --> \/ <!-- -->pending|running \/ pending/)
@@ -132,6 +137,15 @@ test('progress rendering preserves report text without activating HTML, links or
   assert.match(html, /\[link\]\(javascript:alert\(1\)\)/)
   assert.doesNotMatch(html, /<script|<img|href=|onerror="/)
   assert.match(html, /not proof of a running worker/)
+  assert.match(html, /Research candidates/)
+  assert.match(html, /1 shown of 1; 1 awaiting review/)
+  assert.match(html, /needs_review/)
+  assert.match(html, /not a verified or reportable bug/)
+  assert.match(html, /&lt;script&gt;alert\(3\)&lt;\/script&gt;/)
+  const withoutCandidateProjection = renderToStaticMarkup(createElement(ProgramProgressView,
+    { progress: { ...fixture, candidates: undefined } }))
+  assert.match(withoutCandidateProjection, /Candidate review data is not available/)
+  assert.doesNotMatch(withoutCandidateProjection, /No candidate proposals have been recorded/)
 })
 
 test('per-program controls reflect observed run status and fail closed when backend control is unavailable', () => {

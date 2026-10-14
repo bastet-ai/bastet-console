@@ -35,7 +35,22 @@ export function ProgramProgressView({ progress }: { progress: Progress }) {
       <p>Scope digest: <code>{report.scope_hash}</code></p>
       <pre className="program-progress-text">{report.markdown}</pre>
     </details>)}
-    <p className="form-help">Desired state is a controller request, not proof of a running worker. Reports are untrusted agent output, displayed as text for review. Run status is distinct from campaign metadata; authorized controls can request a guarded transition.</p>
+    <h3>Research candidates ({Array.isArray(progress.candidates)
+      ? `${progress.candidates.length} shown of ${progress.candidate_count ?? 'unknown'}; ${progress.pending_candidate_count ?? 'unknown'} awaiting review`
+      : 'unavailable'})</h3>
+    {!Array.isArray(progress.candidates) ? <p>Candidate review data is not available from this backend.</p>
+      : !progress.candidates.length ? <p>No candidate proposals have been recorded.</p>
+        : progress.candidates.map(candidate => <details className="program-progress-item" key={candidate.id}>
+          <summary>{candidate.title} · {candidate.status} · severity {candidate.severity}</summary>
+          <p>Generation {candidate.generation} · Task <code>{candidate.task_id}</code> ({candidate.task_kind ?? 'task link unavailable'}) · Created {date(candidate.created_at)}</p>
+          <p>Task scope digest: {candidate.task_scope_hash ? <code>{candidate.task_scope_hash}</code> : 'unavailable; check provenance'}</p>
+          <pre className="program-progress-text">{candidate.summary}</pre>
+          <h4>Recorded evidence and verification proposal</h4>
+          <pre className="program-progress-text">{JSON.stringify(candidate.evidence, null, 2)}</pre>
+          {candidate.reviewed_at && <p>Reviewed {date(candidate.reviewed_at)}</p>}
+          {candidate.review_note && <pre className="program-progress-text">{candidate.review_note}</pre>}
+        </details>)}
+    <p className="form-help">Desired state is a controller request, not proof of a running worker. Reports and candidate proposals are untrusted agent output, displayed as text for private human review; the candidate list is capped at 20 with needs_review first. A needs_review proposal is not a verified or reportable bug. Run status is distinct from campaign metadata; authorized controls can request a guarded transition.</p>
   </div>
 }
 

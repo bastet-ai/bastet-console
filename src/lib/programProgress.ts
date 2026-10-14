@@ -16,6 +16,13 @@ export interface ProgramProgress {
     result: unknown; error: string | null; created_at: string; completed_at: string | null
   }[]
   reports: { id: string; title: string; markdown: string; scope_hash: string; created_at: string }[]
+  candidate_count?: number
+  pending_candidate_count?: number
+  candidates?: {
+    id: string; generation: number; task_id: string; task_kind: string | null; task_scope_hash: string | null
+    title: string; summary: string; severity: string; evidence: unknown; status: string
+    created_at: string; reviewed_at: string | null; review_note: string | null
+  }[]
 }
 
 export interface ProgramProgressResponse {

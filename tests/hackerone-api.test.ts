@@ -7,7 +7,7 @@ import importProgram from '../pages/api/integrations/hackerone'
 import campaigns from '../pages/api/campaigns/index'
 import campaign from '../pages/api/campaigns/[id]'
 import sync from '../pages/api/campaigns/sync'
-import { ConsoleDatabase } from '../src/server/database'
+import { ConsoleDatabase, ProgramSyncBlockedError } from '../src/server/database'
 import { requestContext } from '../src/server/runtime'
 import { SQLiteDatabase } from '../src/server/sqlite'
 import { campaignInput, hackerOneSnapshotDigest } from '../src/server/campaign-validation'
@@ -299,6 +299,23 @@ test('sync preview never mutates the saved campaign and acceptance pins both old
     campaignId: created.id, expectedSha256: review.sha256, previousSha256: review.previous_sha256,
   })
   assert.equal(stale.status, 409)
+})
+
+test('changed snapshot acceptance reports unavailable canonical run control without saving metadata', async () => {
+  const created = await createImported()
+  policy += ' New synthetic restriction.'
+  const review = (await invoke(sync, 'POST', { campaignId: created.id })).body.preview
+  const before = await database.campaign('owner', created.id)
+  const original = database.acceptChangedHackerOneSnapshot
+  database.acceptChangedHackerOneSnapshot = async () => { throw new ProgramSyncBlockedError('run_control_unavailable') }
+  try {
+    const response = await invoke(sync, 'POST', {
+      campaignId: created.id, expectedSha256: review.sha256, previousSha256: review.previous_sha256,
+    })
+    assert.equal(response.status, 503)
+    assert.match(response.body.error, /changed snapshot was not saved/i)
+    assert.deepEqual(await database.campaign('owner', created.id), before)
+  } finally { database.acceptChangedHackerOneSnapshot = original }
 })
 
 test('upstream policy changes after preview or upstream failures leave the prior snapshot untouched', async () => {

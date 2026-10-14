@@ -13,6 +13,7 @@ export interface SqlDatabase {
   readonly dialect?: 'postgres'
   prepare(sql: string): SqlStatement
   batch(statements: SqlStatement[]): Promise<{ meta: { changes: number } }[]>
+  transaction?<T>(callback: (database: SqlDatabase) => Promise<T>): Promise<T>
 }
 type Row = Record<string, SqlValue>
 
@@ -57,8 +58,50 @@ const memberUser = (row: Row) => {
     users: { id: row.user_id, name: user_name, email: user_email, avatar_url: user_avatar } }
 }
 
+export type ProgramSyncBlockedReason = 'run_control_unavailable' | 'run_mapping_invalid' | 'run_pause_blocked' | 'campaign_changed'
+
+export class ProgramSyncBlockedError extends Error {
+  constructor(readonly reason: ProgramSyncBlockedReason) {
+    super(`HackerOne snapshot acceptance blocked: ${reason}`)
+    this.name = 'ProgramSyncBlockedError'
+  }
+}
+
 export class ConsoleDatabase {
   constructor(private readonly db: SqlDatabase) {}
+
+  /** A changed HackerOne snapshot must pause its exact linked research run in
+   * the same PostgreSQL transaction as the campaign update. Campaign metadata
+   * alone does not disable agent calls. No-run SQLite imports keep their
+   * existing behavior; PostgreSQL fails closed without both DB projections. */
+  async acceptChangedHackerOneSnapshot(userId: string, campaignId: string, handle: string,
+    input: Partial<CampaignInput>, previousDigest: string | null) {
+    if (this.db.dialect !== 'postgres') return this.updateCampaign(userId, campaignId, input, previousDigest)
+    if (!this.db.transaction) throw new ProgramSyncBlockedError('run_control_unavailable')
+    return this.db.transaction(async transaction => {
+      const db = new ConsoleDatabase(transaction)
+      const locked = await transaction.prepare(`SELECT id FROM campaigns WHERE id = ? AND hackerone_handle = ?
+        AND (owner_id = ? OR EXISTS (SELECT 1 FROM campaign_members m WHERE m.campaign_id = campaigns.id
+          AND m.user_id = ? AND m.role IN ('owner', 'manager')))
+        AND (hackerone_metadata #>> '{scope_snapshot,sha256}') IS NOT DISTINCT FROM ? FOR UPDATE`)
+        .bind(campaignId, handle, userId, userId, previousDigest).first<Row>()
+      if (!locked) return null
+      const state = await db.campaignProgress(userId, campaignId)
+      if (!state?.configured || !state.control_available) throw new ProgramSyncBlockedError('run_control_unavailable')
+      if (state.progress !== null) {
+        if (typeof state.progress !== 'object' || typeof state.progress.run_id !== 'string' ||
+            !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(state.progress.run_id) ||
+            state.progress.handle !== handle) throw new ProgramSyncBlockedError('run_mapping_invalid')
+        const paused = await db.controlProgram(userId, campaignId, 'pause')
+        if (!paused.ok || paused.action !== 'pause' || paused.status !== 'paused') {
+          throw new ProgramSyncBlockedError('run_pause_blocked')
+        }
+      }
+      const updated = await db.updateCampaign(userId, campaignId, input, previousDigest)
+      if (!updated) throw new ProgramSyncBlockedError('campaign_changed')
+      return updated
+    })
+  }
 
   private jsonObject(argumentsSql: string) {
     return `${this.db.dialect === 'postgres' ? 'jsonb_build_object' : 'json_object'}(${argumentsSql})`
