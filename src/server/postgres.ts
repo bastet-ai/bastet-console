@@ -82,21 +82,22 @@ export function normalizePostgresRow(row: QueryResultRow, fields: readonly { nam
 }
 
 class PostgresStatement implements SqlStatement {
-  constructor(readonly owner: PostgresDatabase, readonly sql: string, readonly values: SqlValue[] = []) {}
-  bind(...values: SqlValue[]) { return new PostgresStatement(this.owner, this.sql, values) }
+  constructor(readonly owner: PostgresDatabase, readonly sql: string, readonly values: SqlValue[] = [],
+    readonly runner: Pool | PoolClient = owner.pool) {}
+  bind(...values: SqlValue[]) { return new PostgresStatement(this.owner, this.sql, values, this.runner) }
   async first<T>() {
-    const result = await this.owner.pool.query(this.sql, this.values)
+    const result = await this.runner.query(this.sql, this.values)
     return result.rows.length ? normalizePostgresRow(result.rows[0], result.fields) as T : null
   }
   async all<T>() {
-    const result = await this.owner.pool.query(this.sql, this.values)
+    const result = await this.runner.query(this.sql, this.values)
     return { results: result.rows.map(row => normalizePostgresRow(row, result.fields)) as T[] }
   }
   async execute(client: Pool | PoolClient) {
     const result = await client.query(this.sql, this.values)
     return { meta: { changes: result.rowCount ?? 0 } }
   }
-  run() { return this.execute(this.owner.pool) }
+  run() { return this.execute(this.runner) }
 }
 
 export class PostgresDatabase implements SqlDatabase {
@@ -107,8 +108,26 @@ export class PostgresDatabase implements SqlDatabase {
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'postgres_idle_connection_failed' })))
   }
   prepare(sql: string) { return new PostgresStatement(this, postgresPlaceholders(sql)) }
+  async transaction<T>(callback: (database: SqlDatabase) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect()
+    let broken = false
+    try {
+      await client.query('BEGIN')
+      const transaction: SqlDatabase = {
+        dialect: 'postgres',
+        prepare: sql => new PostgresStatement(this, postgresPlaceholders(sql), [], client),
+        batch: async () => { throw new Error('Nested console transaction is unsupported') },
+      }
+      const value = await callback(transaction)
+      await client.query('COMMIT')
+      return value
+    } catch (error) {
+      try { await client.query('ROLLBACK') } catch { broken = true }
+      throw error
+    } finally { client.release(broken) }
+  }
   async batch(statements: SqlStatement[]) {
-    if (statements.some(statement => !(statement instanceof PostgresStatement) || statement.owner !== this)) throw new Error('Invalid batch statement')
+    if (statements.some(statement => !(statement instanceof PostgresStatement) || statement.owner !== this || statement.runner !== this.pool)) throw new Error('Invalid batch statement')
     const client = await this.pool.connect()
     let broken = false
     try {

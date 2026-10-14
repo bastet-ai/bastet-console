@@ -14,6 +14,8 @@
 
 .program-progress-content h3 { margin-top: 1.5rem; margin-bottom: .5rem; font-weight: 600; }
 .program-progress-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .75rem; }
+.program-control-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
+.program-control-actions .form-help { margin: 0; }
 .program-progress-summary dt { font-size: .85rem; opacity: .7; }
 .program-progress-summary dd { margin: .15rem 0 0; overflow-wrap: anywhere; }
 .program-progress-table { overflow-x: auto; }

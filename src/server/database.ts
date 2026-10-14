@@ -1,7 +1,7 @@
 // Persistence is server-only. Every tenant query takes the authenticated user ID.
 // SQL parameters hold values; dynamic column names come only from fixed lists.
 export type Role = 'owner' | 'manager' | 'collaborator' | 'watcher'
-import type { ProgramProgress, ProgramProgressResponse } from '../lib/programProgress'
+import type { ProgramControlAction, ProgramControlResult, ProgramProgress, ProgramProgressResponse } from '../lib/programProgress'
 export type SqlValue = string | number | null
 export interface SqlStatement {
   bind(...values: SqlValue[]): SqlStatement
@@ -13,6 +13,7 @@ export interface SqlDatabase {
   readonly dialect?: 'postgres'
   prepare(sql: string): SqlStatement
   batch(statements: SqlStatement[]): Promise<{ meta: { changes: number } }[]>
+  transaction?<T>(callback: (database: SqlDatabase) => Promise<T>): Promise<T>
 }
 type Row = Record<string, SqlValue>
 
@@ -57,8 +58,50 @@ const memberUser = (row: Row) => {
     users: { id: row.user_id, name: user_name, email: user_email, avatar_url: user_avatar } }
 }
 
+export type ProgramSyncBlockedReason = 'run_control_unavailable' | 'run_mapping_invalid' | 'run_pause_blocked' | 'campaign_changed'
+
+export class ProgramSyncBlockedError extends Error {
+  constructor(readonly reason: ProgramSyncBlockedReason) {
+    super(`HackerOne snapshot acceptance blocked: ${reason}`)
+    this.name = 'ProgramSyncBlockedError'
+  }
+}
+
 export class ConsoleDatabase {
   constructor(private readonly db: SqlDatabase) {}
+
+  /** A changed HackerOne snapshot must pause its exact linked research run in
+   * the same PostgreSQL transaction as the campaign update. Campaign metadata
+   * alone does not disable agent calls. No-run SQLite imports keep their
+   * existing behavior; PostgreSQL fails closed without both DB projections. */
+  async acceptChangedHackerOneSnapshot(userId: string, campaignId: string, handle: string,
+    input: Partial<CampaignInput>, previousDigest: string | null) {
+    if (this.db.dialect !== 'postgres') return this.updateCampaign(userId, campaignId, input, previousDigest)
+    if (!this.db.transaction) throw new ProgramSyncBlockedError('run_control_unavailable')
+    return this.db.transaction(async transaction => {
+      const db = new ConsoleDatabase(transaction)
+      const locked = await transaction.prepare(`SELECT id FROM campaigns WHERE id = ? AND hackerone_handle = ?
+        AND (owner_id = ? OR EXISTS (SELECT 1 FROM campaign_members m WHERE m.campaign_id = campaigns.id
+          AND m.user_id = ? AND m.role IN ('owner', 'manager')))
+        AND (hackerone_metadata #>> '{scope_snapshot,sha256}') IS NOT DISTINCT FROM ? FOR UPDATE`)
+        .bind(campaignId, handle, userId, userId, previousDigest).first<Row>()
+      if (!locked) return null
+      const state = await db.campaignProgress(userId, campaignId)
+      if (!state?.configured || !state.control_available) throw new ProgramSyncBlockedError('run_control_unavailable')
+      if (state.progress !== null) {
+        if (typeof state.progress !== 'object' || typeof state.progress.run_id !== 'string' ||
+            !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(state.progress.run_id) ||
+            state.progress.handle !== handle) throw new ProgramSyncBlockedError('run_mapping_invalid')
+        const paused = await db.controlProgram(userId, campaignId, 'pause')
+        if (!paused.ok || paused.action !== 'pause' || paused.status !== 'paused') {
+          throw new ProgramSyncBlockedError('run_pause_blocked')
+        }
+      }
+      const updated = await db.updateCampaign(userId, campaignId, input, previousDigest)
+      if (!updated) throw new ProgramSyncBlockedError('campaign_changed')
+      return updated
+    })
+  }
 
   private jsonObject(argumentsSql: string) {
     return `${this.db.dialect === 'postgres' ? 'jsonb_build_object' : 'json_object'}(${argumentsSql})`
@@ -139,14 +182,37 @@ export class ConsoleDatabase {
     // Membership is mandatory even for configured/no-run status. The definer
     // function exposes an allowlisted projection, not direct agent-table access.
     if (!await this.campaignRole(userId, campaignId)) return null
-    if (this.db.dialect !== 'postgres') return { configured: false, progress: null }
+    if (this.db.dialect !== 'postgres') return { configured: false, control_available: false, progress: null }
     const available = await this.db.prepare(`SELECT EXISTS (
       SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
       WHERE n.nspname = 'bastet' AND p.proname = 'console_progress' AND p.proargtypes = '25'::oidvector
     ) AS available`).first<{ available: number }>()
-    if (!available?.available) return { configured: false, progress: null }
+    if (!available?.available) return { configured: false, control_available: false, progress: null }
     const row = await this.db.prepare('SELECT bastet.console_progress(?) AS progress').bind(campaignId).first<Row>()
-    return { configured: true, progress: row ? decodeJson(row.progress) as ProgramProgress | null : null }
+    return { configured: true, control_available: await this.programControlAvailable(), progress: row ? decodeJson(row.progress) as ProgramProgress | null : null }
+  }
+
+  async programControlAvailable(): Promise<boolean> {
+    if (this.db.dialect !== 'postgres') return false
+    const row = await this.db.prepare(`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'bastet' AND p.proname = 'console_control'
+        AND p.proargtypes = '25 25 25'::oidvector AND pg_catalog.has_function_privilege(p.oid, 'EXECUTE')
+    ) AS available`).first<{ available: number }>()
+    return Boolean(row?.available)
+  }
+
+  async controlProgram(userId: string, campaignId: string, action: ProgramControlAction): Promise<ProgramControlResult> {
+    // The only mutation is through the allowlisted, audited DB function. Its
+    // internal eligibility/hold checks are authoritative; this API cannot
+    // directly update bastet tables or treat campaign.status as run control.
+    const row = await this.db.prepare('SELECT bastet.console_control(?, ?, ?) AS result')
+      .bind(campaignId, action, userId).first<Row>()
+    const result = row ? decodeJson(row.result) : null
+    if (!result || typeof result !== 'object' || typeof (result as ProgramControlResult).ok !== 'boolean') {
+      throw new Error('Invalid program control response')
+    }
+    return result as ProgramControlResult
   }
 
   async createCampaign(userId: string, input: CampaignInput) {

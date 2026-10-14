@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { database } from '../../../src/server/runtime'
 import { authenticatedUser, apiFailure } from '../../../src/server/auth'
+import { ProgramSyncBlockedError, type CampaignInput } from '../../../src/server/database'
 import { assertHackerOneAccess, fetchHackerOneProgram, HackerOneError, hackerOneScope, hackerOneMetadata } from '../../../src/server/hackerone'
 import { hackerOneSnapshotDigest } from '../../../src/server/campaign-validation'
 
@@ -47,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(409).json({ error: 'The HackerOne policy or saved snapshot changed. Preview and review the latest scope before accepting.' })
     }
     const timestamp = new Date().toISOString()
-    const updatedCampaign = await db.updateCampaign(userId, campaignId, {
+    const update: Partial<CampaignInput> = {
       name: team.name || String(campaign.name),
       description: team.about || (campaign.description as string | null),
       scope,
@@ -55,12 +56,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ...(changed ? { status: 'paused' } : {}),
       hackerone_last_synced: metadata.scope_snapshot.fetched_at,
       hackerone_metadata: { ...metadata, previous_sha256: previousDigest, synced_at: timestamp, accepted_at: timestamp, accepted_by: userId }
-    }, previousDigest)
+    }
+    const updatedCampaign = changed
+      ? await db.acceptChangedHackerOneSnapshot(userId, campaignId, campaign.hackerone_handle, update, previousDigest)
+      : await db.updateCampaign(userId, campaignId, update, previousDigest)
     if (!updatedCampaign) return res.status(409).json({ error: 'The saved campaign changed or access was revoked. Preview the scope again before accepting.' })
     return res.json({ success: true, campaign: updatedCampaign, message: changed
-      ? 'Updated scope saved. The campaign is paused; no testing was started or authorized.'
+      ? 'Updated scope saved. The campaign and any linked research run are paused; no testing was started or authorized.'
       : 'The unchanged scope snapshot was refreshed; no testing was started or authorized.' })
   } catch (error) {
+    if (error instanceof ProgramSyncBlockedError) {
+      const unavailable = error.reason === 'run_control_unavailable'
+      return res.status(unavailable ? 503 : 409).json({ error: unavailable
+        ? 'Research run control is unavailable. The changed snapshot was not saved; no run was resumed.'
+        : 'The linked research run could not be safely paused or the campaign changed. The snapshot was not saved; review the run and preview again.' })
+    }
     if (error instanceof HackerOneError) return res.status(error.status).json({ error: error.message })
     return apiFailure(res, 'campaign_sync')
   }

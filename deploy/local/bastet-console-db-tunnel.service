@@ -1,12 +1,7 @@
 [Unit]
-Description=Loopback SSH transport for Bastet console PostgreSQL
+Description=Manual loopback SSH transport for Bastet console PostgreSQL
 
 [Service]
 ExecStart=/usr/bin/ssh -F /dev/null -N -o BatchMode=yes -o ConnectTimeout=10 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 127.0.0.1:6544:127.0.0.1:5434 pierce@majin.x43.io
-Restart=always
-RestartSec=3
 UMask=0077
 NoNewPrivileges=true
-
-[Install]
-WantedBy=default.target
