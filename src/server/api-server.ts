@@ -14,6 +14,9 @@ import campaign from '../../pages/api/campaigns/[id]'
 import members from '../../pages/api/campaigns/[id]/members'
 import progress from '../../pages/api/campaigns/[id]/progress'
 import control from '../../pages/api/campaigns/[id]/control'
+import candidateReview from '../../pages/api/campaigns/[id]/candidates/[candidateId]/review'
+import runtimeAttestation from '../../pages/api/campaigns/[id]/live-tests/[jobId]/attest'
+import pilotReview from '../../pages/api/campaigns/[id]/live-tests/[jobId]/pilot-review'
 import activities from '../../pages/api/campaigns/activities'
 import sync from '../../pages/api/campaigns/sync'
 import nodes from '../../pages/api/nodes/index'
@@ -26,12 +29,16 @@ import { dirname, join } from 'node:path'
 import { snapshotDatabase } from './backup'
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => unknown
-const routes: [RegExp, Handler][] = [
+type Route = [RegExp, Handler, ('candidateId' | 'jobId')?]
+const routes: Route[] = [
   [/^\/api\/inventory$/, inventoryHandler],
   [/^\/api\/auth\/google$/, google], [/^\/api\/auth\/verify$/, verify], [/^\/api\/auth\/logout$/, logout],
   [/^\/api\/campaigns$/, campaigns], [/^\/api\/campaigns\/activities$/, activities], [/^\/api\/campaigns\/sync$/, sync],
   [/^\/api\/campaigns\/([^/]+)\/progress$/, progress],
   [/^\/api\/campaigns\/([^/]+)\/control$/, control],
+  [/^\/api\/campaigns\/([^/]+)\/candidates\/([^/]+)\/review$/, candidateReview, 'candidateId'],
+  [/^\/api\/campaigns\/([^/]+)\/live-tests\/([^/]+)\/attest$/, runtimeAttestation, 'jobId'],
+  [/^\/api\/campaigns\/([^/]+)\/live-tests\/([^/]+)\/pilot-review$/, pilotReview, 'jobId'],
   [/^\/api\/campaigns\/([^/]+)\/members$/, members], [/^\/api\/campaigns\/([^/]+)$/, campaign],
   [/^\/api\/nodes$/, nodes], [/^\/api\/nodes\/([^/]+)$/, node],
   [/^\/api\/integrations\/hackerone$/, hackerone], [/^\/api\/ws\/nodes$/, websocket],
@@ -67,8 +74,9 @@ export function createApiServer(options: { database: ConsoleDatabase; serviceKey
       }
       const req = incoming as NextApiRequest
       req.query = Object.fromEntries(url.searchParams)
-      const id = route[0].exec(url.pathname)?.[1]
-      if (id) req.query.id = decodeURIComponent(id)
+      const match = route[0].exec(url.pathname)
+      if (match?.[1]) req.query.id = decodeURIComponent(match[1])
+      if (route[2] && match?.[2]) req.query[route[2]] = decodeURIComponent(match[2])
       req.body = size ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}
       await requestContext.run({ database: options.database, inventory: options.inventory, ...(suppliedDebug ? { debugUserId: options.debugUserId } : {}) }, () => route[1](req, res))
     } catch (error) {

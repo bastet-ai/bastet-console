@@ -67,6 +67,26 @@ test('Majin HTTP adapter preserves authorization and debug access requires both 
     assert.equal((await request(`/api/campaigns/${id}`, normal)).status, 200)
     const outsider = { ...normal, authorization: `Bearer ${jwt.sign({ userId: 'http-other' }, process.env.JWT_SECRET)}` }
     assert.equal((await request(`/api/campaigns/${id}`, outsider)).status, 403)
+    const candidateId = '11111111-1111-4111-8111-111111111111'
+    const jobId = '22222222-2222-4222-8222-222222222222'
+    const digest = (digit: number) => String(digit).repeat(64)
+    const reviewPath = `/api/campaigns/${id}/candidates/${candidateId}/review?candidateId=forged`
+    assert.equal((await request(reviewPath, debug, 'POST', {
+      decision: 'rejected', note: 'No reproducible runtime impact was established.',
+    })).status, 503)
+    assert.equal((await request(reviewPath, outsider, 'POST', {
+      decision: 'rejected', note: 'No reproducible runtime impact was established.',
+    })).status, 403)
+    assert.equal((await request(`/api/campaigns/${id}/live-tests/${jobId}/attest?jobId=forged`, debug, 'POST', {
+      impact_kind: 'unauthorized_read', cleanup_status: 'clean', fixture_ownership_sha256: digest(1),
+      before_state_sha256: digest(2), after_state_sha256: digest(3), impact_evidence_sha256: digest(4),
+      negative_control_sha256: digest(5), cleanup_sha256: digest(6), independent_reproduction_sha256: digest(7),
+    })).status, 503)
+    assert.equal((await request(`/api/campaigns/${id}/live-tests/${jobId}/pilot-review?jobId=forged`, debug, 'POST', {
+      cleanup_status: 'clean', fixture_ownership_sha256: digest(1), request_trace_sha256: digest(2),
+      negative_control_sha256: digest(3), before_state_sha256: digest(4), after_cleanup_state_sha256: digest(4),
+      cleanup_sha256: digest(5), independent_replay_sha256: digest(6),
+    })).status, 503)
     // The public proxy strips injected service/debug credentials.
     const publicRequest = new Request('https://console.test/api/auth/verify', { headers: { 'x-console-debug-key': debugKey, 'x-console-service-key': 'attacker' } })
     assert.equal((await proxyApi(publicRequest, origin, serviceKey)).status, 401)
