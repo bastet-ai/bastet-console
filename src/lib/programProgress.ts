@@ -23,6 +23,79 @@ export interface ProgramProgress {
     title: string; summary: string; severity: string; evidence: unknown; status: string
     created_at: string; reviewed_at: string | null; review_note: string | null
   }[]
+  research_funnel?: ResearchFunnel
+}
+
+export interface ResearchFunnel {
+  approved_asset_entries: number
+  eligible_asset_count: number
+  policy_refresh_at: string | null
+  hypotheses: { total: number; untested: number; negative: number; inconclusive: number; verified_runtime: number }
+  test_jobs: { total: number; pending: number; running: number; complete: number; inconclusive: number; failed: number; cleanup_failed: number; cancelled: number }
+  test_requests: number
+  candidate_decisions: { pending: number; human_reviewed: number; reportable: number; rejected: number; duplicate: number }
+  task_failures: number
+  task_failures_by_kind: { kind: string; count: number }[]
+  model_calls: number
+  completed_cycles: number
+  completed_cycle_seconds: number
+  last_task_created_at: string | null
+  last_test_result_at: string | null
+  candidate_review_options: { candidate_id: string; result_id: string; recorded_at: string }[]
+}
+
+export type CandidateReviewDecision = 'reportable' | 'rejected' | 'duplicate'
+
+export interface CandidateReviewResult {
+  ok: boolean
+  candidate_id: string
+  status: CandidateReviewDecision
+  reviewed_at: string
+}
+
+export type RuntimeImpactKind = 'unauthorized_read' | 'unauthorized_write' | 'cross_account_access' | 'privilege_escalation' | 'authentication_bypass'
+
+export interface RuntimeAttestationProof {
+  impact_kind: RuntimeImpactKind
+  cleanup_status: 'clean' | 'not_applicable'
+  fixture_ownership_sha256: string
+  before_state_sha256: string
+  after_state_sha256: string
+  impact_evidence_sha256: string
+  negative_control_sha256: string
+  cleanup_sha256: string
+  independent_reproduction_sha256: string
+}
+
+export interface RuntimeAttestationResult {
+  ok: true
+  attestation_id: string
+  result_id: string
+  job_id: string
+  hypothesis_id: string
+  classification: 'verified_runtime'
+  candidate_created: false
+}
+
+export interface PilotReviewProof {
+  cleanup_status: 'clean' | 'not_applicable'
+  fixture_ownership_sha256: string
+  request_trace_sha256: string
+  negative_control_sha256: string
+  before_state_sha256: string
+  after_cleanup_state_sha256: string
+  cleanup_sha256: string
+  independent_replay_sha256: string
+}
+
+export interface PilotReviewResult {
+  ok: true
+  review_id: string
+  job_id: string
+  manifest_id: string
+  hypothesis_id: string
+  classification: 'controlled_pilot'
+  candidate_created: false
 }
 
 export interface ProgramProgressResponse {

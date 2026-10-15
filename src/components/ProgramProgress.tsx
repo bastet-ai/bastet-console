@@ -1,9 +1,73 @@
 import React, { useEffect, useState } from 'react'
-import type { ProgramControlAction, ProgramProgress as Progress, ProgramProgressResponse } from '../lib/programProgress'
+import type { CandidateReviewDecision, ProgramControlAction, ProgramProgress as Progress, ProgramProgressResponse } from '../lib/programProgress'
 
 const date = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not yet recorded'
+const count = (value: number) => new Intl.NumberFormat().format(value)
+type ReviewSubmission = { candidateId: string; decision: CandidateReviewDecision; note: string; resultId: string | null; reproductionSha256: string | null }
 
-export function ProgramProgressView({ progress }: { progress: Progress }) {
+function CandidateReviewForm({ candidateId, options, busy, onReview }: {
+  candidateId: string; options: { result_id: string; recorded_at: string }[]; busy: boolean
+  onReview: (submission: ReviewSubmission) => Promise<void>
+}) {
+  const [decision, setDecision] = useState<CandidateReviewDecision>('rejected')
+  const [note, setNote] = useState('')
+  const [resultId, setResultId] = useState('')
+  const [reproductionSha256, setReproductionSha256] = useState<string | null>(null)
+  const [evidenceName, setEvidenceName] = useState<string | null>(null)
+  const [evidenceError, setEvidenceError] = useState<string | null>(null)
+  const [independent, setIndependent] = useState(false)
+  const hashSequence = React.useRef(0)
+  const hashEvidence = async (file: File | undefined) => {
+    const sequence = ++hashSequence.current
+    setReproductionSha256(null); setEvidenceName(null); setEvidenceError(null)
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) { setEvidenceError('Choose an evidence file no larger than 10 MiB.'); return }
+    try {
+      const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+      if (sequence !== hashSequence.current) return
+      setReproductionSha256(Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join(''))
+      setEvidenceName(file.name)
+    } catch { if (sequence === hashSequence.current) setEvidenceError('The evidence file could not be hashed locally.') }
+  }
+  const reportable = decision === 'reportable'
+  const valid = note.trim().length >= (reportable ? 40 : 20) &&
+    (!reportable || Boolean(resultId && reproductionSha256 && independent))
+  return <form className="program-candidate-review" onSubmit={event => {
+    event.preventDefault()
+    if (!valid || busy) return
+    void onReview({ candidateId, decision, note: note.trim(), resultId: reportable ? resultId : null,
+      reproductionSha256: reportable ? reproductionSha256 : null })
+  }}>
+    <h4>Owner decision</h4>
+    <label>Disposition <select value={decision} disabled={busy} onChange={event => setDecision(event.target.value as CandidateReviewDecision)}>
+      <option value="rejected">Reject</option><option value="duplicate">Duplicate</option>
+      {options.length > 0 && <option value="reportable">Reportable after independent reproduction</option>}
+    </select></label>
+    {reportable && <>
+      <label>Verified runtime result <select value={resultId} disabled={busy} onChange={event => setResultId(event.target.value)}>
+        <option value="">Select the matching result</option>
+        {options.map(option => <option key={option.result_id} value={option.result_id}>{date(option.recorded_at)} · {option.result_id}</option>)}
+      </select></label>
+      <label>Independent reproduction evidence file <input type="file" disabled={busy}
+        onChange={event => { void hashEvidence(event.currentTarget.files?.[0]) }} /></label>
+      <p className="form-help">The file stays on this device; only its SHA-256 digest is saved. Retain the private original for human audit. Use an independent owned-instance reproduction, not the automated test output.</p>
+      {evidenceName && <p>Hashed locally: {evidenceName} · <code>{reproductionSha256}</code></p>}
+      {evidenceError && <p role="alert">{evidenceError}</p>}
+      <label><input type="checkbox" checked={independent} disabled={busy}
+        onChange={event => setIndependent(event.target.checked)} /> I independently reproduced the impact using an authorized identity and reviewed the negative control and cleanup.</label>
+    </>}
+    <label>Review note <textarea value={note} maxLength={1200} disabled={busy}
+      onChange={event => setNote(event.target.value)} placeholder="Explain the human decision and evidence limitations" /></label>
+    <button type="submit" className="form-button form-button-secondary" disabled={busy || !valid}>
+      {busy ? 'Saving decision...' : 'Save owner decision'}
+    </button>
+  </form>
+}
+
+export function ProgramProgressView({ progress, canReview = false, reviewBusy = false, onReview }: {
+  progress: Progress; canReview?: boolean; reviewBusy?: boolean; onReview?: (submission: ReviewSubmission) => Promise<void>
+}) {
+  const funnel = progress.research_funnel
   return <div className="program-progress-content">
     <dl className="program-progress-summary">
       <div><dt>Run status</dt><dd>{progress.status}</dd></div>
@@ -13,6 +77,24 @@ export function ProgramProgressView({ progress }: { progress: Progress }) {
       <div><dt>Private Buzz channel</dt><dd>{progress.buzz_channel_id || 'Not yet created'}</dd></div>
       <div><dt>Approved scope digest</dt><dd><code>{progress.scope_hash}</code></dd></div>
     </dl>
+    <h3>Research funnel</h3>
+    {!funnel ? <p>Research funnel metrics are not available from this backend.</p> : <>
+      <dl className="program-progress-summary">
+        <div><dt>Fresh-eligible approved asset entries</dt><dd>{count(funnel.eligible_asset_count)} / {count(funnel.approved_asset_entries)}</dd></div>
+        <div><dt>Hypotheses</dt><dd>{count(funnel.hypotheses.total)} total · {count(funnel.hypotheses.untested)} untested</dd></div>
+        <div><dt>Test outcomes</dt><dd>{count(funnel.hypotheses.negative)} negative · {count(funnel.hypotheses.inconclusive)} inconclusive · {count(funnel.hypotheses.verified_runtime)} verified runtime</dd></div>
+        <div><dt>Live-test jobs</dt><dd>{count(funnel.test_jobs.total)} total · {count(funnel.test_jobs.pending + funnel.test_jobs.running)} open · {count(funnel.test_jobs.cleanup_failed)} cleanup failed</dd></div>
+        <div><dt>Bounded test requests</dt><dd>{count(funnel.test_requests)}</dd></div>
+        <div><dt>Human decisions</dt><dd>{count(funnel.candidate_decisions.human_reviewed)} reviewed · {count(funnel.candidate_decisions.reportable)} marked reportable · {count(funnel.candidate_decisions.pending)} pending</dd></div>
+        <div><dt>Failed tasks</dt><dd>{count(funnel.task_failures)}{funnel.task_failures_by_kind.length ? ` (${funnel.task_failures_by_kind.map(item => `${item.kind}: ${item.count}`).join(', ')})` : ''}</dd></div>
+        <div><dt>Completed cycle time</dt><dd>{count(funnel.completed_cycle_seconds)} seconds across {count(funnel.completed_cycles)} cycles</dd></div>
+        <div><dt>Model calls</dt><dd>{count(funnel.model_calls)} · monetary cost unavailable</dd></div>
+        <div><dt>Last created task</dt><dd>{date(funnel.last_task_created_at)}</dd></div>
+        <div><dt>Last test result</dt><dd>{date(funnel.last_test_result_at)}</dd></div>
+        <div><dt>Last policy refresh</dt><dd>{date(funnel.policy_refresh_at)}</dd></div>
+      </dl>
+      <p className="form-help">Counts come from durable run records, not service health or agent heartbeats. Approved entries are not permission to test; fresh eligibility may be zero while a run is paused. A verified runtime result is not a human-reviewed, reportable bug.</p>
+    </>}
     <h3>Program head and workers</h3>
     {!progress.agents.length ? <p>No agents have been registered for this run.</p> : <div className="program-progress-table"><table>
       <thead><tr><th>Agent</th><th>Role / template</th><th>Desired / observed</th><th>Last seen</th><th>Model calls</th></tr></thead>
@@ -49,6 +131,9 @@ export function ProgramProgressView({ progress }: { progress: Progress }) {
           <pre className="program-progress-text">{JSON.stringify(candidate.evidence, null, 2)}</pre>
           {candidate.reviewed_at && <p>Reviewed {date(candidate.reviewed_at)}</p>}
           {candidate.review_note && <pre className="program-progress-text">{candidate.review_note}</pre>}
+          {canReview && onReview && funnel && candidate.status === 'needs_review' && <CandidateReviewForm
+            candidateId={candidate.id} options={funnel.candidate_review_options.filter(option => option.candidate_id === candidate.id)}
+            busy={reviewBusy} onReview={onReview} />}
         </details>)}
     <p className="form-help">Desired state is a controller request, not proof of a running worker. Reports and candidate proposals are untrusted agent output, displayed as text for private human review; the candidate list is capped at 20 with needs_review first. A needs_review proposal is not a verified or reportable bug. Run status is distinct from campaign metadata; authorized controls can request a guarded transition.</p>
   </div>
@@ -70,13 +155,16 @@ export function ProgramControlActions({ status, available, busy, campaignName, o
   </div>
 }
 
-export default function ProgramProgress({ campaignId, campaignName, canManage }: { campaignId: string; campaignName: string; canManage: boolean }) {
+export default function ProgramProgress({ campaignId, campaignName, canManage, canReview = false }: { campaignId: string; campaignName: string; canManage: boolean; canReview?: boolean }) {
   const [data, setData] = useState<ProgramProgressResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updated, setUpdated] = useState<string | null>(null)
   const [controlBusy, setControlBusy] = useState(false)
   const [controlMessage, setControlMessage] = useState<string | null>(null)
   const [controlError, setControlError] = useState<string | null>(null)
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
     let disposed = false, pending = false
@@ -128,15 +216,34 @@ export default function ProgramProgress({ campaignId, campaignName, canManage }:
       setControlError(cause instanceof Error ? cause.message : 'Program control could not be confirmed. Refresh the run state before retrying.')
     } finally { setControlBusy(false) }
   }
+  const review = async ({ candidateId, decision, note, resultId, reproductionSha256 }: ReviewSubmission) => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) { setReviewError('Sign in before reviewing candidates.'); return }
+    setReviewBusy(true); setReviewError(null); setReviewMessage(null)
+    try {
+      const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/candidates/${encodeURIComponent(candidateId)}/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ decision, note, result_id: resultId, reproduction_sha256: reproductionSha256 }), cache: 'no-store',
+      })
+      const result = await response.json() as { success?: boolean; error?: string }
+      if (!response.ok || !result.success) throw new Error(result.error || 'Candidate decision was not saved.')
+      setReviewMessage(`The owner decision was recorded as ${decision}. This did not submit a bounty report or resume research.`)
+      setReloadKey(value => value + 1)
+    } catch (cause) { setReviewError(cause instanceof Error ? cause.message : 'Candidate review could not be confirmed.') }
+    finally { setReviewBusy(false) }
+  }
   return <section className="campaign-scope-section program-progress" aria-label="Live program progress">
     <h2 className="section-title">Live program progress</h2>
     <p className="form-help">Refreshes every 30 seconds.{updated ? ` Last refreshed ${date(updated)}.` : ''}</p>
     {error && <p role="alert">{error}</p>}
     {!data && !error && <p>Loading program progress...</p>}
-    {data && (!data.configured ? <p>Program orchestration is not configured for this backend.</p> : !data.progress ? <p>No orchestration run is linked to this campaign.</p> : <ProgramProgressView progress={data.progress} />)}
+    {data && (!data.configured ? <p>Program orchestration is not configured for this backend.</p> : !data.progress ? <p>No orchestration run is linked to this campaign.</p> : <ProgramProgressView progress={data.progress}
+      canReview={canReview} reviewBusy={reviewBusy} onReview={review} />)}
     {data?.progress && canManage && <ProgramControlActions status={data.progress.status} available={data.control_available}
       busy={controlBusy} campaignName={campaignName} onControl={action => { void control(action) }} />}
     {controlError && <p role="alert">{controlError}</p>}
     {controlMessage && <p role="status">{controlMessage}</p>}
+    {reviewError && <p role="alert">{reviewError}</p>}
+    {reviewMessage && <p role="status">{reviewMessage}</p>}
   </section>
 }

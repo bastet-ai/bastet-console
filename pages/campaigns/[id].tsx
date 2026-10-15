@@ -371,7 +371,8 @@ export default function CampaignDetail() {
             )}
           </div>
 
-          <ProgramProgress key={campaign.id} campaignId={campaign.id} campaignName={campaign.name} canManage={Boolean(canManageCampaign())} />
+          <ProgramProgress key={campaign.id} campaignId={campaign.id} campaignName={campaign.name}
+            canManage={Boolean(canManageCampaign())} canReview={campaign.userRole === 'owner'} />
 
           {/* Campaign Scope */}
           <div className="campaign-scope-section">

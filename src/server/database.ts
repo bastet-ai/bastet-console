@@ -1,7 +1,7 @@
 // Persistence is server-only. Every tenant query takes the authenticated user ID.
 // SQL parameters hold values; dynamic column names come only from fixed lists.
 export type Role = 'owner' | 'manager' | 'collaborator' | 'watcher'
-import type { ProgramControlAction, ProgramControlResult, ProgramProgress, ProgramProgressResponse } from '../lib/programProgress'
+import type { CandidateReviewDecision, CandidateReviewResult, PilotReviewProof, PilotReviewResult, ProgramControlAction, ProgramControlResult, ProgramProgress, ProgramProgressResponse, ResearchFunnel, RuntimeAttestationProof, RuntimeAttestationResult } from '../lib/programProgress'
 export type SqlValue = string | number | null
 export interface SqlStatement {
   bind(...values: SqlValue[]): SqlStatement
@@ -86,7 +86,7 @@ export class ConsoleDatabase {
         AND (hackerone_metadata #>> '{scope_snapshot,sha256}') IS NOT DISTINCT FROM ? FOR UPDATE`)
         .bind(campaignId, handle, userId, userId, previousDigest).first<Row>()
       if (!locked) return null
-      const state = await db.campaignProgress(userId, campaignId)
+      const state = await db.campaignProgress(userId, campaignId, false)
       if (!state?.configured || !state.control_available) throw new ProgramSyncBlockedError('run_control_unavailable')
       if (state.progress !== null) {
         if (typeof state.progress !== 'object' || typeof state.progress.run_id !== 'string' ||
@@ -178,7 +178,7 @@ export class ConsoleDatabase {
     return row ? decodeCampaign(row) : null
   }
 
-  async campaignProgress(userId: string, campaignId: string): Promise<ProgramProgressResponse | null> {
+  async campaignProgress(userId: string, campaignId: string, includeFunnel = true): Promise<ProgramProgressResponse | null> {
     // Membership is mandatory even for configured/no-run status. The definer
     // function exposes an allowlisted projection, not direct agent-table access.
     if (!await this.campaignRole(userId, campaignId)) return null
@@ -189,7 +189,19 @@ export class ConsoleDatabase {
     ) AS available`).first<{ available: number }>()
     if (!available?.available) return { configured: false, control_available: false, progress: null }
     const row = await this.db.prepare('SELECT bastet.console_progress(?) AS progress').bind(campaignId).first<Row>()
-    return { configured: true, control_available: await this.programControlAvailable(), progress: row ? decodeJson(row.progress) as ProgramProgress | null : null }
+    const progress = row ? decodeJson(row.progress) as ProgramProgress | null : null
+    if (progress && includeFunnel) {
+      const funnelAvailable = await this.db.prepare(`SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = 'bastet' AND p.proname = 'console_research_funnel'
+          AND p.proargtypes = '25 25'::oidvector AND pg_catalog.has_function_privilege(p.oid, 'EXECUTE')
+      ) AS available`).first<{ available: number }>()
+      if (funnelAvailable?.available) {
+        const funnel = await this.db.prepare('SELECT bastet.console_research_funnel(?, ?) AS funnel').bind(campaignId, userId).first<Row>()
+        if (funnel) progress.research_funnel = decodeJson(funnel.funnel) as ResearchFunnel
+      }
+    }
+    return { configured: true, control_available: await this.programControlAvailable(), progress }
   }
 
   async programControlAvailable(): Promise<boolean> {
@@ -213,6 +225,73 @@ export class ConsoleDatabase {
       throw new Error('Invalid program control response')
     }
     return result as ProgramControlResult
+  }
+
+  async candidateReviewAvailable(): Promise<boolean> {
+    if (this.db.dialect !== 'postgres') return false
+    const row = await this.db.prepare(`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'bastet' AND p.proname = 'console_review_candidate'
+        AND p.pronargs = 7 AND pg_catalog.has_function_privilege(p.oid, 'EXECUTE')
+    ) AS available`).first<{ available: number }>()
+    return Boolean(row?.available)
+  }
+
+  async reviewCandidate(userId: string, campaignId: string, candidateId: string,
+    decision: CandidateReviewDecision, note: string, resultId: string | null,
+    reproductionSha256: string | null): Promise<CandidateReviewResult> {
+    const row = await this.db.prepare('SELECT bastet.console_review_candidate(?, ?, ?, ?, ?, ?, ?) AS result')
+      .bind(campaignId, candidateId, decision, userId, note, resultId, reproductionSha256).first<Row>()
+    const result = row ? decodeJson(row.result) : null
+    if (!result || typeof result !== 'object' || (result as CandidateReviewResult).ok !== true) {
+      throw new Error('Invalid candidate review response')
+    }
+    return result as CandidateReviewResult
+  }
+
+  async runtimeAttestationAvailable(): Promise<boolean> {
+    if (this.db.dialect !== 'postgres') return false
+    const row = await this.db.prepare(`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'bastet' AND p.proname = 'console_attest_live_test'
+        AND p.pronargs = 4 AND pg_catalog.has_function_privilege(p.oid, 'EXECUTE')
+    ) AS available`).first<{ available: number }>()
+    return Boolean(row?.available)
+  }
+
+  async attestLiveTest(userId: string, campaignId: string, jobId: string,
+    proof: RuntimeAttestationProof): Promise<RuntimeAttestationResult> {
+    const row = await this.db.prepare('SELECT bastet.console_attest_live_test(?, ?, ?, ?::jsonb) AS result')
+      .bind(campaignId, jobId, userId, JSON.stringify(proof)).first<Row>()
+    const result = row ? decodeJson(row.result) : null
+    if (!result || typeof result !== 'object' || (result as RuntimeAttestationResult).ok !== true ||
+        (result as RuntimeAttestationResult).classification !== 'verified_runtime') {
+      throw new Error('Invalid runtime attestation response')
+    }
+    return result as RuntimeAttestationResult
+  }
+
+  async pilotReviewAvailable(): Promise<boolean> {
+    if (this.db.dialect !== 'postgres') return false
+    const row = await this.db.prepare(`SELECT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'bastet' AND p.proname = 'console_review_live_test_pilot'
+        AND p.pronargs = 4 AND pg_catalog.has_function_privilege(p.oid, 'EXECUTE')
+    ) AS available`).first<{ available: number }>()
+    return Boolean(row?.available)
+  }
+
+  async reviewLiveTestPilot(userId: string, campaignId: string, jobId: string,
+    proof: PilotReviewProof): Promise<PilotReviewResult> {
+    const row = await this.db.prepare('SELECT bastet.console_review_live_test_pilot(?, ?, ?, ?::jsonb) AS result')
+      .bind(campaignId, jobId, userId, JSON.stringify(proof)).first<Row>()
+    const result = row ? decodeJson(row.result) : null
+    if (!result || typeof result !== 'object' || (result as PilotReviewResult).ok !== true ||
+        (result as PilotReviewResult).classification !== 'controlled_pilot' ||
+        (result as PilotReviewResult).candidate_created !== false) {
+      throw new Error('Invalid pilot review response')
+    }
+    return result as PilotReviewResult
   }
 
   async createCampaign(userId: string, input: CampaignInput) {
