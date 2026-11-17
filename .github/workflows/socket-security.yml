@@ -38,11 +38,11 @@ jobs:
         run: npm ci
         
       - name: Run Socket.dev CLI scan
-        uses: socketsecurity/cli-action@v1
-        with:
-          api-key: ${{ secrets.SOCKET_API_KEY }}
-          # Scan for vulnerabilities and supply chain issues
-          scan-type: 'security'
+        env:
+          SOCKET_CLI_API_TOKEN: ${{ secrets.SOCKET_API_KEY }}
+        run: |
+          test -n "$SOCKET_CLI_API_TOKEN" || { echo "SOCKET_API_KEY is required for Socket scanning"; exit 1; }
+          npx --yes --package=@socketsecurity/cli@1.15.0 socket ci
           
       - name: Run dependency audit
         run: |
