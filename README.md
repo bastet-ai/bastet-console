@@ -77,3 +77,7 @@ Check for an active Git build before manual deployment. See the Majin runbook.
 The legacy WebSocket endpoint was never a functioning socket server. It now
 returns an explicit 501. Persistent node connections require a separately designed
 Durable Object implementation; they are not simulated by per-isolate memory.
+
+## License
+
+Original Bastet code and authored documentation are licensed under the [Apache License 2.0](LICENSE). Third-party dependencies, quoted source material, imported program policies and datasets, binaries, images, and other third-party assets retain their respective rights and notices and are not relicensed by this grant.
